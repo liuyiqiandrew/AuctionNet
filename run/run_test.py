@@ -11,7 +11,7 @@ import psutil
 from simul_bidding_env.Tracker.BiddingTracker import BiddingTracker
 from simul_bidding_env.Tracker.PlayerAnalysis import PlayerAnalysis
 from simul_bidding_env.Controller.Controller import Controller
-from collections import Iterable
+from collections.abc import Iterable
 import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -233,7 +233,9 @@ def run_test(generate_log: bool = False,
                 )
 
         if generate_log:
-            train_data_tracker.generate_train_data(f"data/log/{episode}.csv")
+            train_data_tracker.generate_train_data(
+                f"data/log/player_{player_index}_episode_{episode}.csv"
+            )
 
 
     end_time = time.time()

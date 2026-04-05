@@ -127,19 +127,25 @@ class IQL(nn.Module):
         self.actor_optimizer = Adam(self.actors.parameters(), lr=self.actor_lr)
         self.deterministic_action = True
         self.use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda:0" if self.use_cuda else "cpu")
         if self.use_cuda:
-            self.critic1.cuda()
-            self.critic2.cuda()
-            self.critic1_target.cuda()
-            self.critic2_target.cuda()
-            self.value_net.cuda()
-            self.actors.cuda()
+            self.critic1.to(self.device)
+            self.critic2.to(self.device)
+            self.critic1_target.to(self.device)
+            self.critic2_target.to(self.device)
+            self.value_net.to(self.device)
+            self.actors.to(self.device)
         self.FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
 
     def step(self, states, actions, rewards, next_states, dones):
         '''
         train model
         '''
+        states = states.to(self.device)
+        actions = actions.to(self.device)
+        rewards = rewards.to(self.device)
+        next_states = next_states.to(self.device)
+        dones = dones.to(self.device)
 
         self.value_optimizer.zero_grad()
         value_loss = self.calc_value_loss(states, actions)
@@ -191,7 +197,7 @@ class IQL(nn.Module):
             min_Q = torch.min(q1, q2)
 
         exp_a = torch.exp(min_Q - v) * self.temperature
-        exp_a = torch.min(exp_a, torch.FloatTensor([100.0]))
+        exp_a = torch.min(exp_a, torch.tensor([100.0], device=self.device))
 
         _, dist = self.actors.evaluate(states)
         log_probs = dist.log_prob(actions)
@@ -237,7 +243,7 @@ class IQL(nn.Module):
     def save_jit(self, save_path):
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
-        jit_model = torch.jit.script(self.cpu())
+        jit_model = torch.jit.script(deepcopy(self).cpu())
         torch.jit.save(jit_model, f'{save_path}/iql_model.pth')
 
     def load_net(self, load_path="saved_model/fixed_initial_budget", device='cuda:0'):

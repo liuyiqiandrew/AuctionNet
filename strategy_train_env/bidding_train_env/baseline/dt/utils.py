@@ -24,8 +24,10 @@ class EpisodeReplayBuffer(Dataset):
             try:
                 return ast.literal_eval(val)
             except (ValueError, SyntaxError):
-                print(ValueError)
-                return val
+                try:
+                    return eval(val, {"__builtins__": {}}, {"np": np})
+                except Exception:
+                    return val
 
         training_data["state"] = training_data["state"].apply(safe_literal_eval)
         training_data["next_state"] = training_data["next_state"].apply(safe_literal_eval)
@@ -124,4 +126,3 @@ class EpisodeReplayBuffer(Dataset):
         for t in reversed(range(x.shape[0] - 1)):
             discount_cumsum[t] = x[t] + gamma * discount_cumsum[t + 1]
         return discount_cumsum
-

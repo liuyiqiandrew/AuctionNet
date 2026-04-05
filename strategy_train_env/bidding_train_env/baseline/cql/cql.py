@@ -7,6 +7,7 @@ The original sources have been modified and adapted for the specific needs of th
 """
 
 import os
+from copy import deepcopy
 import numpy as np
 import torch
 import torch.optim as optim
@@ -47,7 +48,7 @@ class PolicyNetwork(nn.Module):
 
         # Calculate log probability under Gaussian distribution
         log_prob = -0.5 * (
-            ((actions - mean) / (std + 1e-6)) ** 2 + 2 * log_std + torch.log(torch.tensor(2 * torch.pi))
+            ((actions - mean) / (std + 1e-6)) ** 2 + 2 * log_std + torch.log(torch.tensor(2 * torch.pi, device=x.device))
         ).sum(-1, keepdim=True)
         return log_prob
 
@@ -82,7 +83,7 @@ class CQL(nn.Module):
         self.qf2_optimizer = optim.Adam(self.qf2.parameters(), lr=critic_lr)
 
         self.target_entropy = -dim_actions
-        self.log_alpha = torch.zeros(1, requires_grad=True)
+        self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=actor_lr)
         self.min_q_weight = 1.0
 
@@ -215,7 +216,7 @@ class CQL(nn.Module):
         '''
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
-        scripted_policy = torch.jit.script(self.cpu())
+        scripted_policy = torch.jit.script(deepcopy(self).cpu())
         scripted_policy.save(save_path + "/cql_model" + ".pth")
 
     def load_net(self, load_path="saved_model/fixed_initial_budget", device='cuda:0') -> None:
@@ -259,5 +260,3 @@ if __name__ == '__main__':
 
     total_params = sum(p.numel() for p in model.parameters())
     print("Learnable parameters: {:,}".format(total_params))
-
-

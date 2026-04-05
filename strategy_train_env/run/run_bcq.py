@@ -30,8 +30,10 @@ def train_bcq_model():
         try:
             return ast.literal_eval(val)
         except (ValueError, SyntaxError):
-            print(ValueError)
-            return val  # 如果解析出错，返回原值
+            try:
+                return eval(val, {"__builtins__": {}}, {"np": np})
+            except Exception:
+                return val  # 如果解析出错，返回原值
 
     # 使用apply方法应用上述函数
     training_data["state"] = training_data["state"].apply(safe_literal_eval)

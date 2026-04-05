@@ -187,7 +187,12 @@ class TD3_BC(nn.Module):
     def step(self,state, action, reward, next_state, done):
         self.total_it += 1
 
-        state, action, reward, next_state, not_done = state, action, reward, next_state, 1 - done
+        state = state.to(self.device)
+        action = action.to(self.device)
+        reward = reward.to(self.device)
+        next_state = next_state.to(self.device)
+        done = done.to(self.device)
+        not_done = 1 - done
 
         with torch.no_grad():
             noise = (
@@ -237,7 +242,7 @@ class TD3_BC(nn.Module):
         '''
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
-        scripted_policy = torch.jit.script(self.cpu())
+        scripted_policy = torch.jit.script(deepcopy(self).cpu())
         scripted_policy.save(save_path + "/td3_bc_model" + ".pth")
 
 
@@ -267,4 +272,3 @@ if __name__ == '__main__':
 
         q_loss, a_loss = model.step(state, action, reward, next_state, done)
         print(f'step:{i} q_loss:{q_loss} a_loss:{a_loss}')
-

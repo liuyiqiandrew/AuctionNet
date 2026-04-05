@@ -252,6 +252,12 @@ class BCQ(nn.Module):
         return action[ind].cpu().data.numpy().flatten()
 
     def step(self, state, action, reward, next_state, terminal):
+        state = state.to(self.device)
+        action = action.to(self.device)
+        reward = reward.to(self.device)
+        next_state = next_state.to(self.device)
+        terminal = terminal.to(self.device)
+
         # Variational Auto-Encoder Training
         batch_size=state.shape[0]
         recon, mean, std = self.vae(state, action)
@@ -312,7 +318,7 @@ class BCQ(nn.Module):
             os.makedirs(save_path)
         # Script each submodule individually
         #torch.save(self.cpu(),save_path + "/bcq_model" + ".pth")
-        scripted_policy = torch.jit.script(self.cpu())
+        scripted_policy = torch.jit.script(copy.deepcopy(self).cpu())
         scripted_policy.save(save_path + "/bcq_model" + ".pth")
 
 

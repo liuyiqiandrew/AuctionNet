@@ -25,7 +25,7 @@ NUM_EPISODE = 2
 NUM_TICK = 48
 
 # Whether to generate a log files（Log files can be used as raw data for training strategies.）
-GENERATE_LOG = False
+GENERATE_LOG = True
 
 run_test.generate_log = %GENERATE_LOG
 run_test.num_episode = %NUM_EPISODE

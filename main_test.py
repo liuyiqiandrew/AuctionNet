@@ -15,7 +15,7 @@ def main():
     gin_file = ["./config/test.gin"]
     gin.parse_config_files_and_bindings(gin_file, None)
     all_results = []
-    for player_index in range(0, 2):
+    for player_index in range(7):
         result = run_test(player_index=player_index)
         formated_result = {
             'score': float(result["score"]),
