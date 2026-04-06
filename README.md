@@ -90,7 +90,7 @@ Then, each agent may win some impressions (IV), which may be exposed to users an
 
 ### Create and activate conda environment
 ```bash
-$ conda create -n AuctionNet python=3.9.12 pip=23.0.1
+$ conda create -n AuctionNet python=3.12
 $ conda activate AuctionNet
 ```
 ### Install requirements
