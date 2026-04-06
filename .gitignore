@@ -8,3 +8,4 @@
 /strategy_train_env/saved_model/
 /strategy_train_env/slurm_out/
 /figures/
+*.sbatch*
