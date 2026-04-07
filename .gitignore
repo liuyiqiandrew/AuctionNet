@@ -13,3 +13,5 @@ CLAUDE.md
 .claude/*
 .venv/
 pre_generated_dataset/
+*/*.sh
+plan/

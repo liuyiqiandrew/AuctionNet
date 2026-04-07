@@ -23,6 +23,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SAVE_DIR = "saved_model/PPOtest"
+# Per-tick reward magnitude is the sum of pValues for impressions the player won;
+# in this sim it sits at ~10–20 per tick, so a 1/20 scale puts it near O(1) and
+# keeps GAE returns + value targets bounded for the shared trunk.
+REWARD_SCALE = 1.0 / 20.0
 
 
 def _safe_literal(x):
@@ -171,6 +175,12 @@ def run_one_episode(controller: TrainingController, player_index: int,
         player_reward = float((pv_values[:, player_index] * is_exposed[player_index]).sum())
         player_cost = float(cost[player_index])
         player_conv = float(conv[player_index].sum())
+        if not np.isfinite(player_reward):
+            player_reward = 0.0
+        if not np.isfinite(player_cost):
+            player_cost = 0.0
+        if not np.isfinite(player_conv):
+            player_conv = 0.0
         ep_reward += player_reward
         ep_cost += player_cost
         ep_conversions += player_conv
@@ -178,7 +188,7 @@ def run_one_episode(controller: TrainingController, player_index: int,
         done = (t == num_tick - 1) or (
             agents[player_index].remaining_budget < envs.min_remaining_budget
         )
-        buffer.record_reward(player_reward, done)
+        buffer.record_reward(player_reward * REWARD_SCALE, done)
 
         history_pv.append(np.stack((pv_values.T, pvalue_sigmas.T), axis=-1))
         history_bids.append(bids.transpose())
@@ -195,7 +205,7 @@ def run_one_episode(controller: TrainingController, player_index: int,
     cpa_cap = float(agents[player_index].cpa)
     if realized_cpa > cpa_cap and len(buffer.rew) > 0:
         overrun = (realized_cpa - cpa_cap) / max(cpa_cap, 1e-6)
-        buffer.rew[-1] -= cpa_penalty_coef * overrun
+        buffer.rew[-1] -= cpa_penalty_coef * overrun * REWARD_SCALE
 
     buffer.finish_path(last_value=0.0)
     return ep_reward, ep_cost, ep_conversions, len(buffer.obs) - pre_buffer_len

@@ -56,9 +56,18 @@ class RolloutBuffer:
         obs = np.stack(self.obs).astype(np.float32)
         logp = np.array(self.logp, dtype=np.float32)
         log_act = np.array(self.log_act, dtype=np.float32)
+        val = np.array(self.val, dtype=np.float32)
         adv = np.concatenate(self._adv_chunks).astype(np.float32)
         ret = np.concatenate(self._ret_chunks).astype(np.float32)
+        # Belt-and-braces: scrub non-finite values before they reach the optimizer.
+        obs = np.nan_to_num(obs, nan=0.0, posinf=0.0, neginf=0.0)
+        logp = np.nan_to_num(logp, nan=0.0, posinf=0.0, neginf=0.0)
+        log_act = np.nan_to_num(log_act, nan=0.0, posinf=0.0, neginf=0.0)
+        val = np.nan_to_num(val, nan=0.0, posinf=0.0, neginf=0.0)
+        adv = np.nan_to_num(adv, nan=0.0, posinf=0.0, neginf=0.0)
+        ret = np.nan_to_num(ret, nan=0.0, posinf=0.0, neginf=0.0)
         self._clear()
         self._adv_chunks = []
         self._ret_chunks = []
-        return {"obs": obs, "logp": logp, "log_act": log_act, "adv": adv, "ret": ret}
+        return {"obs": obs, "logp": logp, "log_act": log_act,
+                "val": val, "adv": adv, "ret": ret}
