@@ -407,7 +407,86 @@ These three metrics work well together:
 - `continuous_reward`: tells you whether the policy is capturing more expected value
 - `cpa_exceedance_rate`: tells you whether gains are coming from real efficiency or from violating the CPA target
 
-## 7.1 Other Useful Progress Metrics
+## 7.1 Exact Definitions Used By The Tracker
+
+The tracker implementation in `strategy_train_env/run/offline_metric_tracker.py` computes these metrics group by group, then averages them across held-out groups.
+
+Let:
+
+- `g` index a held-out validation group
+- `t` index the tick
+- `i` index the PV within a tick
+- `x_{g,t,i} in {0,1}` be the final win indicator after the offline replay and budget-adjustment logic
+- `p_{g,t,i}` be `pValue`
+- `m_{g,t,i}` be `leastWinningCost`
+- `C_g` be the CPA constraint for group `g`
+- `G` be the set of evaluated validation groups
+
+Then the per-group spend is:
+
+```text
+S_g = sum_t sum_i m_{g,t,i} x_{g,t,i}
+```
+
+The per-group continuous reward is:
+
+```text
+R_g^cont = sum_t sum_i p_{g,t,i} x_{g,t,i}
+```
+
+The per-group continuous CPA is:
+
+```text
+CPA_g^cont =
+  S_g / (R_g^cont + 1e-10),   if R_g^cont > 0
+  +inf,                       if R_g^cont = 0 and S_g > 0
+  0,                          if R_g^cont = 0 and S_g = 0
+```
+
+The per-group CPA penalty is:
+
+```text
+penalty_g =
+  1,                                   if CPA_g^cont <= C_g
+  (C_g / (CPA_g^cont + 1e-10))^2,      if CPA_g^cont > C_g and finite
+  0,                                   if CPA_g^cont = +inf
+```
+
+So the per-group `continuous_raw_score` is:
+
+```text
+continuous_raw_score_g = penalty_g * R_g^cont
+```
+
+The per-group `continuous_reward` is simply:
+
+```text
+continuous_reward_g = R_g^cont
+```
+
+The per-group `cpa_exceedance_rate` is:
+
+```text
+cpa_exceedance_rate_g =
+  (CPA_g^cont - C_g) / (C_g + 1e-10),   if CPA_g^cont is finite
+  +inf,                                 otherwise
+```
+
+Finally, the tracker reports the mean across validation groups:
+
+```text
+continuous_raw_score = (1 / |G|) sum_{g in G} continuous_raw_score_g
+continuous_reward = (1 / |G|) sum_{g in G} continuous_reward_g
+cpa_exceedance_rate = (1 / |G|) sum_{g in G} cpa_exceedance_rate_g
+```
+
+So the exact interpretation is:
+
+- `continuous_reward` measures average expected conversion mass on won impressions
+- `continuous_raw_score` applies the same quadratic CPA penalty used for score-style evaluation
+- `cpa_exceedance_rate` tells you how far above or below the CPA target the checkpoint sits on average
+
+## 7.2 Other Useful Progress Metrics
 
 There are other useful metrics for visualizing training progress, but I would treat them as complementary metrics rather than replacements for `continuous_raw_score`.
 
