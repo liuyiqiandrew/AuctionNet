@@ -1,8 +1,12 @@
 import numpy as np
 import logging
+import os
+import torch
 from bidding_train_env.common.utils import normalize_state, normalize_reward, save_normalize_dict
 from bidding_train_env.baseline.iql.replay_buffer import ReplayBuffer
 from bidding_train_env.baseline.iql.iql import IQL
+from bidding_train_env.strategy.base_bidding_strategy import BaseBiddingStrategy
+from run.offline_metric_tracker import OfflineMetricTracker, evaluate_offline_bidding_strategy
 import sys
 import pandas as pd
 import ast
@@ -13,14 +17,189 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 STATE_DIM = 16
+DEFAULT_VALIDATION_DATA_PATH = "./data/traffic/period-7.csv"
 
 
-def train_iql_model():
+class IqlValidationStrategy(BaseBiddingStrategy):
+    """
+    Lightweight in-memory strategy wrapper used for checkpoint validation during
+    training.
+    """
+
+    def __init__(self, model, normalize_dict, budget=100, name="Iql-ValidationStrategy", cpa=2, category=1):
+        super().__init__(budget, name, cpa, category)
+        self.model = model
+        self.normalize_dict = normalize_dict
+
+    def reset(self):
+        self.remaining_budget = self.budget
+
+    @staticmethod
+    def _mean_of_last_n_elements(history, n):
+        last_n_data = history[max(0, len(history) - n):]
+        if len(last_n_data) == 0:
+            return 0.0
+        return float(np.mean([np.mean(data) for data in last_n_data]))
+
+    def _build_state(
+        self,
+        timeStepIndex,
+        pValues,
+        historyPValueInfo,
+        historyBid,
+        historyAuctionResult,
+        historyImpressionResult,
+        historyLeastWinningCost,
+    ):
+        time_left = (48 - timeStepIndex) / 48
+        budget_left = self.remaining_budget / self.budget if self.budget > 0 else 0
+        history_xi = [result[:, 0] for result in historyAuctionResult]
+        history_pvalue = [result[:, 0] for result in historyPValueInfo]
+        history_conversion = [result[:, 1] for result in historyImpressionResult]
+
+        historical_xi_mean = np.mean([np.mean(xi) for xi in history_xi]) if history_xi else 0.0
+        historical_conversion_mean = (
+            np.mean([np.mean(reward) for reward in history_conversion]) if history_conversion else 0.0
+        )
+        historical_least_winning_cost_mean = (
+            np.mean([np.mean(price) for price in historyLeastWinningCost]) if historyLeastWinningCost else 0.0
+        )
+        historical_pvalues_mean = np.mean([np.mean(value) for value in history_pvalue]) if history_pvalue else 0.0
+        historical_bid_mean = np.mean([np.mean(bid) for bid in historyBid]) if historyBid else 0.0
+
+        last_three_xi_mean = self._mean_of_last_n_elements(history_xi, 3)
+        last_three_conversion_mean = self._mean_of_last_n_elements(history_conversion, 3)
+        last_three_least_winning_cost_mean = self._mean_of_last_n_elements(historyLeastWinningCost, 3)
+        last_three_pvalues_mean = self._mean_of_last_n_elements(history_pvalue, 3)
+        last_three_bid_mean = self._mean_of_last_n_elements(historyBid, 3)
+
+        current_pvalues_mean = float(np.mean(pValues))
+        current_pv_num = len(pValues)
+        historical_pv_num_total = sum(len(bids) for bids in historyBid) if historyBid else 0
+        last_three_pv_num_total = sum(len(bids) for bids in historyBid[-3:]) if historyBid else 0
+
+        test_state = np.array(
+            [
+                time_left,
+                budget_left,
+                historical_bid_mean,
+                last_three_bid_mean,
+                historical_least_winning_cost_mean,
+                historical_pvalues_mean,
+                historical_conversion_mean,
+                historical_xi_mean,
+                last_three_least_winning_cost_mean,
+                last_three_pvalues_mean,
+                last_three_conversion_mean,
+                last_three_xi_mean,
+                current_pvalues_mean,
+                current_pv_num,
+                last_three_pv_num_total,
+                historical_pv_num_total,
+            ],
+            dtype=np.float32,
+        )
+
+        for key, value in self.normalize_dict.items():
+            min_value = value["min"]
+            max_value = value["max"]
+            test_state[key] = (
+                (test_state[key] - min_value) / (max_value - min_value)
+                if max_value > min_value
+                else 0.0
+            )
+
+        return test_state
+
+    def bidding(
+        self,
+        timeStepIndex,
+        pValues,
+        pValueSigmas,
+        historyPValueInfo,
+        historyBid,
+        historyAuctionResult,
+        historyImpressionResult,
+        historyLeastWinningCost,
+    ):
+        del pValueSigmas
+        state = self._build_state(
+            timeStepIndex,
+            pValues,
+            historyPValueInfo,
+            historyBid,
+            historyAuctionResult,
+            historyImpressionResult,
+            historyLeastWinningCost,
+        )
+
+        with torch.no_grad():
+            model_was_training = self.model.training
+            self.model.eval()
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.model.device)
+            alpha = self.model(state_tensor).detach().cpu().numpy()
+            if model_was_training:
+                self.model.train()
+
+        return alpha * pValues
+
+
+def save_iql_checkpoint(model, normalize_dict, save_root, step):
+    checkpoint_dir = os.path.join(save_root, "checkpoints", f"step_{step:05d}")
+    model.save_jit(checkpoint_dir)
+    save_normalize_dict(normalize_dict, checkpoint_dir)
+    return checkpoint_dir
+
+
+def build_iql_metric_tracker(
+    model,
+    normalize_dict,
+    save_root,
+    validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
+    eval_interval=1000,
+    max_validation_groups=32,
+):
+    if eval_interval <= 0:
+        return None
+
+    def strategy_factory():
+        return IqlValidationStrategy(model=model, normalize_dict=normalize_dict)
+
+    def evaluator():
+        return evaluate_offline_bidding_strategy(
+            strategy_factory=strategy_factory,
+            file_path=validation_data_path,
+            max_groups=max_validation_groups,
+        )
+
+    def checkpoint_saver(step):
+        return save_iql_checkpoint(model, normalize_dict, save_root, step)
+
+    logger.info(
+        "Offline metric tracking enabled: eval_interval=%s validation_data_path=%s max_validation_groups=%s",
+        eval_interval,
+        validation_data_path,
+        max_validation_groups,
+    )
+    return OfflineMetricTracker(
+        output_dir=save_root,
+        evaluator=evaluator,
+        checkpoint_saver=checkpoint_saver,
+        eval_interval=eval_interval,
+    )
+
+
+def train_iql_model(
+    eval_interval=1000,
+    validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
+    max_validation_groups=32,
+):
     """
     Train the IQL model.
     """
     train_data_path = "./data/traffic/training_data_rlData_folder/training_data_all-rlData.csv"
     training_data = pd.read_csv(train_data_path)
+    save_root = "saved_model/IQLtest"
 
     def safe_literal_eval(val):
         if pd.isna(val):
@@ -36,6 +215,7 @@ def train_iql_model():
     training_data["state"] = training_data["state"].apply(safe_literal_eval)
     training_data["next_state"] = training_data["next_state"].apply(safe_literal_eval)
     is_normalize = True
+    normalize_dic = {}
 
     if is_normalize:
         normalize_dic = normalize_state(training_data, STATE_DIM, normalize_indices=[13, 14, 15])
@@ -43,7 +223,7 @@ def train_iql_model():
         training_data['reward'] = normalize_reward(training_data, "reward_continuous")
         # select use sparse reward
         # training_data['reward'] = normalize_reward(training_data, "reward")
-        save_normalize_dict(normalize_dic, "saved_model/IQLtest")
+        save_normalize_dict(normalize_dic, save_root)
 
     # Build replay buffer
     replay_buffer = ReplayBuffer()
@@ -52,10 +232,18 @@ def train_iql_model():
 
     # Train model
     model = IQL(dim_obs=STATE_DIM)
-    train_model_steps(model, replay_buffer)
+    metric_tracker = build_iql_metric_tracker(
+        model=model,
+        normalize_dict=normalize_dic,
+        save_root=save_root,
+        validation_data_path=validation_data_path,
+        eval_interval=eval_interval,
+        max_validation_groups=max_validation_groups,
+    )
+    train_model_steps(model, replay_buffer, metric_tracker=metric_tracker)
 
     # Save model
-    model.save_jit("saved_model/IQLtest")
+    model.save_jit(save_root)
 
     # Test trained model
     test_trained_model(model, replay_buffer)
@@ -73,11 +261,22 @@ def add_to_replay_buffer(replay_buffer, training_data, is_normalize):
                                np.array([done]))
 
 
-def train_model_steps(model, replay_buffer, step_num=20000, batch_size=100):
+def train_model_steps(model, replay_buffer, metric_tracker=None, step_num=20000, batch_size=100):
     for i in range(step_num):
         states, actions, rewards, next_states, terminals = replay_buffer.sample(batch_size)
         q_loss, v_loss, a_loss = model.step(states, actions, rewards, next_states, terminals)
-        logger.info(f'Step: {i} Q_loss: {q_loss} V_loss: {v_loss} A_loss: {a_loss}')
+        step = i + 1
+        logger.info(f'Step: {step} Q_loss: {q_loss} V_loss: {v_loss} A_loss: {a_loss}')
+        if metric_tracker is not None:
+            metric_tracker.maybe_evaluate(
+                step,
+                extra_metrics={
+                    "train_q_loss": float(q_loss),
+                    "train_v_loss": float(v_loss),
+                    "train_a_loss": float(a_loss),
+                },
+                force=(step == step_num),
+            )
 
 
 def test_trained_model(model, replay_buffer):
