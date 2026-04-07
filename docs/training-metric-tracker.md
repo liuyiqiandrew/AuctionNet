@@ -104,6 +104,11 @@ saved_model/IQLtest/
 
 `best_metrics.json` stores the best value, best step, and checkpoint path for each tracked metric.
 
+For a plotting utility that visualizes these checkpoint curves, see:
+
+- `plot_training_checkpoints.py`
+- `docs/training-checkpoint-plots.md`
+
 ## 4. How IQL Uses The Tracker
 
 The integration pattern in IQL is:
