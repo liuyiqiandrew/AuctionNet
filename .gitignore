@@ -9,3 +9,7 @@
 /strategy_train_env/slurm_out/
 /figures/
 *.sbatch*
+CLAUDE.md
+.claude/*
+.venv/
+pre_generated_dataset/
