@@ -71,7 +71,7 @@ class PPO(nn.Module):
     """PPO trainer. self.forward(state) -> alpha is the JIT inference contract,
     matching IQL.forward in baseline/iql/iql.py:186-190."""
 
-    def __init__(self, dim_obs: int = 16, lr: float = 3e-4, gamma: float = 0.99,
+    def __init__(self, dim_obs: int = 16, lr: float = 1e-3, lr_bc: float = 1e-3, gamma: float = 0.99,
                  lam: float = 0.95, clip_eps: float = 0.2, vf_coef: float = 0.25,
                  ent_coef: float = 0.01, max_grad_norm: float = 0.5):
         super().__init__()
@@ -83,6 +83,7 @@ class PPO(nn.Module):
         self.ent_coef = ent_coef
         self.max_grad_norm = max_grad_norm
         self.opt = torch.optim.Adam(self.ac.parameters(), lr=lr)
+        self.opt_bc = torch.optim.Adam(self.ac.parameters(), lr=lr_bc)
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda:0" if self.use_cuda else "cpu")
         self.ac.to(self.device)
@@ -181,9 +182,9 @@ class PPO(nn.Module):
                 h = self.ac.trunk(s[mb])
                 mu = self.ac.mu_head(h).squeeze(-1)
                 loss = F.mse_loss(mu, a[mb])
-                self.opt.zero_grad()
+                self.opt_bc.zero_grad()
                 loss.backward()
-                self.opt.step()
+                self.opt_bc.step()
                 running += loss.item() * len(mb)
             print(f"[BC warm-start] epoch {ep} loss={running / N:.4f}")
 

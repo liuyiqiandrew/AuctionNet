@@ -43,6 +43,17 @@ python  bidding_train_env/train_data_generator/train_data_generator.py
 ## strategy training
 ### reinforcement learning-based bidding
 
+#### PPO (Proximal Policy Optimization) Model
+Use `main_ppo.py` for both training and evaluation of the PPO bidding strategy. 
+
+⚠️ NOTE: PPO is evaluated online, do not use offline evaluation for PPO. 
+```
+  python main/main_ppo.py                    # full train + eval                              
+  python main/main_ppo.py --mode train --num-iterations 5  # quick test                          
+  python main/main_ppo.py --mode eval        # eval saved model                                  
+  python main/main_ppo.py --mode plot        # regenerate plots 
+```
+
 #### IQL(Implicit Q-learning) Model
 Load the training data and train the IQL bidding strategy.
 ```

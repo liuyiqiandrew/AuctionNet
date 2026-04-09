@@ -20,7 +20,7 @@ class TestDataLoader:
 
         """
         self.file_path = file_path
-        self.raw_data_path = os.path.join(os.path.dirname(file_path), "raw_data.pickle")
+        self.raw_data_path = os.path.splitext(file_path)[0] + ".pickle"
         self.raw_data = self._get_raw_data()
         self.keys, self.test_dict = self._get_test_data_dict()
 
