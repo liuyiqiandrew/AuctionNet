@@ -202,7 +202,7 @@ class TemporalContextBuffer:
         self._buffer.append(np.asarray(state, dtype=np.float32))
 
     def as_padded_sequence(self):
-        """Return the current history as a left-padded fixed-length sequence.
+        """Return the current history as a right-padded fixed-length sequence.
 
         Returns
         -------
@@ -214,8 +214,8 @@ class TemporalContextBuffer:
         if not self._buffer:
             return sequence, 1
         buffered = np.asarray(list(self._buffer), dtype=np.float32)
-        # Left-pad with zeros so the most recent state stays at the end.
-        sequence[-buffered.shape[0] :] = buffered
+        # Right-pad with zeros because pack_padded_sequence expects valid tokens first.
+        sequence[: buffered.shape[0]] = buffered
         return sequence, buffered.shape[0]
 
 
@@ -306,7 +306,7 @@ class TemporalReplayBuffer:
                 current_slice = trajectory_states[current_start : idx + 1]
                 current_length = current_slice.shape[0]
                 current_sequence = np.zeros((seq_len, state_dim), dtype=np.float32)
-                current_sequence[-current_length:] = current_slice
+                current_sequence[:current_length] = current_slice
 
                 if idx + 1 < num_steps and trajectory_dones[idx, 0] != 1:
                     # Shift the window by one step when a valid next state exists.
@@ -314,7 +314,7 @@ class TemporalReplayBuffer:
                     next_slice = trajectory_states[next_start : idx + 2]
                     next_length = next_slice.shape[0]
                     next_sequence = np.zeros((seq_len, state_dim), dtype=np.float32)
-                    next_sequence[-next_length:] = next_slice
+                    next_sequence[:next_length] = next_slice
                 else:
                     # Terminal transitions use an all-zero next sequence.
                     next_sequence = np.zeros((seq_len, state_dim), dtype=np.float32)

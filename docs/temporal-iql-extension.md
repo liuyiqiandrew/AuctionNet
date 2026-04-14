@@ -194,7 +194,7 @@ where:
 
 - each `s_i` is a 16-dimensional normalized state
 - `K` is `sequence_length`
-- if we do not yet have K steps of history, we left-pad with zeros
+- if we do not yet have K steps of history, we right-pad with zeros
 
 So each model input state is:
 
@@ -232,22 +232,23 @@ For each advertiser trajectory:
 1. sort the rows by `timeStepIndex`
 2. walk through each step `t`
 3. build the current padded window ending at `t`
-4. build the next padded window ending at `t+1`
-5. if the transition is terminal, use an all-zero next window
+4. place the valid states at the beginning of the array and zero-pad the tail
+5. build the next padded window ending at `t+1`
+6. if the transition is terminal, use an all-zero next window
 
 Conceptually:
 
 ```text
 t = 0
-current = [0, 0, 0, 0, s0]
-next    = [0, 0, 0, s0, s1]
+current = [s0, 0, 0, 0, 0]
+next    = [s0, s1, 0, 0, 0]
 
 t = 1
-current = [0, 0, 0, s0, s1]
-next    = [0, 0, s0, s1, s2]
+current = [s0, s1, 0, 0, 0]
+next    = [s0, s1, s2, 0, 0]
 
 t = last
-current = [..., s_{T-1}]
+current = [s_{T-K+1}, ..., s_{T-1}, 0, ...]
 next    = zeros
 ```
 
@@ -521,7 +522,7 @@ Output:
 
 ## 9. Why `sequence_lengths` Are Needed
 
-The replay buffer pads short histories with zeros.
+The replay buffer pads short histories with zeros on the right.
 
 That means the model must know how many steps are real and how many are padding.
 
@@ -534,7 +535,7 @@ and then:
 
 - `pack_padded_sequence(...)`
 
-tells the GRU to ignore left-padding.
+tells the GRU to ignore right-padding.
 
 Without that, the model would treat zeros as real history, which would blur the temporal signal.
 

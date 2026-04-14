@@ -55,7 +55,7 @@ def _encode_sequence(gru, sequences, lengths):
     if sequences.dim() == 2:
         sequences = sequences.unsqueeze(0)
     lengths = _prepare_lengths(lengths, sequences.size(1), sequences.device)
-    # Packing tells the GRU to ignore the left-padding used in the replay buffer.
+    # Packing tells the GRU to ignore the right-padding used in the replay buffer.
     packed = pack_padded_sequence(
         sequences,
         lengths.detach().cpu(),
@@ -590,7 +590,21 @@ class GRUIQL(nn.Module):
         checkpoint = torch.load(os.path.join(load_path, "gru_iql_model.pt"), map_location=map_location)
         model = cls(**checkpoint["config"])
         model.load_state_dict(checkpoint["state_dict"])
-        model.to(model.device)
+        target_device = map_location if isinstance(map_location, torch.device) else None
+        if target_device is None and isinstance(map_location, str):
+            try:
+                target_device = torch.device(map_location)
+            except (TypeError, RuntimeError):
+                target_device = None
+
+        if target_device is None:
+            target_device = model.device
+        if target_device.type == "cuda" and not torch.cuda.is_available():
+            target_device = torch.device("cpu")
+
+        model.use_cuda = target_device.type == "cuda"
+        model.device = target_device
+        model.to(target_device)
         return model
 
     @staticmethod

@@ -294,8 +294,8 @@ def apply_normalize(state, normalize_dict):
         min_value = value["min"]
         max_value = value["max"]
         state[key] = (
-            (state[key] - min_value) / (max_value - min_value)
-            if max_value > min_value
+            (state[key] - min_value) / (max_value - min_value + 0.01)
+            if max_value >= min_value
             else 0.0
         )
     return np.nan_to_num(state, nan=0.0, posinf=0.0, neginf=0.0)

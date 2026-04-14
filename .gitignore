@@ -11,3 +11,4 @@
 *.sbatch*
 .vscode
 .codex
+CLAUDE.md
