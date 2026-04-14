@@ -15,3 +15,4 @@ CLAUDE.md
 pre_generated_dataset/
 */*.sh
 plan/
+.vscode/*
