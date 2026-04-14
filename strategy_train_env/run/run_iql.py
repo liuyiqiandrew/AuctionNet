@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import os
+import re
 import torch
 from bidding_train_env.common.utils import normalize_state, normalize_reward, save_normalize_dict
 from bidding_train_env.baseline.iql.replay_buffer import ReplayBuffer
@@ -17,7 +18,36 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 STATE_DIM = 16
-DEFAULT_VALIDATION_DATA_PATH = "./data/traffic/period-7.csv"
+NORMALIZE_INDICES = [13, 14, 15]
+TRAIN_PERIODS = tuple(range(7, 27))
+DEFAULT_TRAIN_DATA_DIR = "./data/traffic/training_data_rlData_folder"
+DEFAULT_VALIDATION_DATA_PATH = "./data/traffic/period-27.csv"
+DEFAULT_TRAIN_STEPS = 100000
+
+
+def _train_data_cache_path(train_data_dir=DEFAULT_TRAIN_DATA_DIR, periods=TRAIN_PERIODS):
+    return os.path.join(
+        train_data_dir,
+        f"training_data_period-{periods[0]}-{periods[-1]}-rlData.csv",
+    )
+
+
+def ensure_train_data_cache(train_data_dir=DEFAULT_TRAIN_DATA_DIR, periods=TRAIN_PERIODS):
+    cache_path = _train_data_cache_path(train_data_dir=train_data_dir, periods=periods)
+    if os.path.exists(cache_path):
+        return cache_path
+
+    frames = []
+    for period in periods:
+        period_path = os.path.join(train_data_dir, f"period-{period}-rlData.csv")
+        if not os.path.exists(period_path):
+            raise FileNotFoundError(f"Missing training cache for period-{period}: {period_path}")
+        frames.append(pd.read_csv(period_path))
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined.to_csv(cache_path, index=False)
+    logger.info("Saved IQL training cache for periods %s-%s to %s", periods[0], periods[-1], cache_path)
+    return cache_path
 
 
 class IqlValidationStrategy(BaseBiddingStrategy):
@@ -189,7 +219,107 @@ def build_iql_metric_tracker(
     )
 
 
+def _format_period_summary(period_values):
+    unique_periods = sorted({int(period) for period in period_values if pd.notna(period)})
+    if not unique_periods:
+        return "unknown"
+    if len(unique_periods) == 1:
+        return f"period-{unique_periods[0]}"
+    contiguous = all(
+        next_period - current_period == 1
+        for current_period, next_period in zip(unique_periods, unique_periods[1:])
+    )
+    if contiguous:
+        return f"period-{unique_periods[0]} to {unique_periods[-1]}"
+    return ", ".join(f"period-{period}" for period in unique_periods)
+
+
+def _format_test_data_summary(validation_data_path):
+    match = re.search(r"period-(\d+)", os.path.basename(validation_data_path))
+    if match:
+        return f"period-{match.group(1)}"
+    return validation_data_path
+
+
+def _write_training_report(
+    save_root,
+    training_data,
+    validation_data_path,
+    model,
+    metric_tracker,
+    step_num,
+):
+    report_path = os.path.join(save_root, "training_report.md")
+    image_path = os.path.join(save_root, "training_curves.png")
+    train_period_summary = _format_period_summary(training_data.get("deliveryPeriodIndex", pd.Series(dtype=float)))
+    test_period_summary = _format_test_data_summary(validation_data_path)
+
+    preprocessing = (
+        f"16-dim state features; serialized state/next_state parsed from CSV; "
+        f"min-max normalization on feature indices {NORMALIZE_INDICES}; "
+        f"continuous reward normalization used for training"
+    )
+    learning_rate = (
+        f"actor_lr={model.actor_lr}, critic_lr={model.critic_lr}, value_lr={model.V_lr}"
+    )
+
+    if metric_tracker is not None and metric_tracker.training_tracker.iterations:
+        latest = metric_tracker.training_tracker.iterations[-1]
+        best_score = metric_tracker.best_metrics.get("sparse_raw_score", {}).get("value")
+        best_score_step = metric_tracker.best_metrics.get("sparse_raw_score", {}).get("step")
+        other_metrics = [
+            f"Latest score: {latest.mean_eval_score:.4f} @ step {latest.step}",
+            f"Latest episode reward: {latest.mean_eval_reward:.4f}",
+            f"Latest train/loss: {latest.train_loss:.4f}",
+            f"Latest budget utilization: {latest.mean_budget_utilization:.4f}",
+            f"Validation groups per eval: {latest.num_groups}",
+        ]
+        if best_score is not None and best_score_step is not None:
+            other_metrics.append(f"Best score: {best_score:.4f} @ step {best_score_step}")
+    else:
+        other_metrics = ["No offline validation metrics were recorded."]
+
+    train_periods = {
+        int(period)
+        for period in training_data.get("deliveryPeriodIndex", pd.Series(dtype=float))
+        if pd.notna(period)
+    }
+    test_match = re.search(r"period-(\d+)", test_period_summary)
+    if test_match and int(test_match.group(1)) in train_periods:
+        other_metrics.append(
+            f"Current default validation data ({test_period_summary}) overlaps the training data range ({train_period_summary})."
+        )
+    else:
+        other_metrics.append(
+            f"Training/validation split follows PPO-style holdout: train {train_period_summary}, validate {test_period_summary}."
+        )
+
+    if os.path.exists(image_path):
+        visualization = f"[image #1](training_curves.png)"
+    else:
+        visualization = "N/A"
+
+    report_lines = [
+        f"Method: IQL",
+        f"Training data: {train_period_summary}",
+        f"Testing data: {test_period_summary}",
+        f"Data preprocessing techniques: {preprocessing}",
+        f"Learning rate: {learning_rate}",
+        f"Number of steps trained: {step_num}",
+        (
+            "Training visualization (if any, incl. Score / Ep. reward / Loss / Entropy plots): "
+            f"{visualization}"
+        ),
+        "Other important metrics / comments",
+    ]
+    report_lines.extend(f"- {metric}" for metric in other_metrics)
+
+    with open(report_path, "w", encoding="utf-8") as report_file:
+        report_file.write("\n".join(report_lines) + "\n")
+
+
 def train_iql_model(
+    step_num=DEFAULT_TRAIN_STEPS,
     eval_interval=1000,
     validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
     max_validation_groups=32,
@@ -197,7 +327,7 @@ def train_iql_model(
     """
     Train the IQL model.
     """
-    train_data_path = "./data/traffic/training_data_rlData_folder/training_data_all-rlData.csv"
+    train_data_path = ensure_train_data_cache()
     training_data = pd.read_csv(train_data_path)
     save_root = "saved_model/IQLtest"
 
@@ -218,7 +348,7 @@ def train_iql_model(
     normalize_dic = {}
 
     if is_normalize:
-        normalize_dic = normalize_state(training_data, STATE_DIM, normalize_indices=[13, 14, 15])
+        normalize_dic = normalize_state(training_data, STATE_DIM, normalize_indices=NORMALIZE_INDICES)
         # select use continuous reward
         training_data['reward'] = normalize_reward(training_data, "reward_continuous")
         # select use sparse reward
@@ -240,10 +370,19 @@ def train_iql_model(
         eval_interval=eval_interval,
         max_validation_groups=max_validation_groups,
     )
-    train_model_steps(model, replay_buffer, metric_tracker=metric_tracker)
+    train_model_steps(model, replay_buffer, metric_tracker=metric_tracker, step_num=step_num)
 
     # Save model
     model.save_jit(save_root)
+
+    _write_training_report(
+        save_root=save_root,
+        training_data=training_data,
+        validation_data_path=validation_data_path,
+        model=model,
+        metric_tracker=metric_tracker,
+        step_num=step_num,
+    )
 
     # Test trained model
     test_trained_model(model, replay_buffer)
@@ -261,7 +400,7 @@ def add_to_replay_buffer(replay_buffer, training_data, is_normalize):
                                np.array([done]))
 
 
-def train_model_steps(model, replay_buffer, metric_tracker=None, step_num=20000, batch_size=100):
+def train_model_steps(model, replay_buffer, metric_tracker=None, step_num=DEFAULT_TRAIN_STEPS, batch_size=100):
     for i in range(step_num):
         states, actions, rewards, next_states, terminals = replay_buffer.sample(batch_size)
         q_loss, v_loss, a_loss = model.step(states, actions, rewards, next_states, terminals)

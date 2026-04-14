@@ -9,3 +9,5 @@
 /strategy_train_env/slurm_out/
 /figures/
 *.sbatch*
+.vscode
+.codex

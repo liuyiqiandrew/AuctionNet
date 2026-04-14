@@ -7,6 +7,10 @@ from typing import Callable, Dict, Optional
 
 import numpy as np
 
+from bidding_train_env.baseline.iql.metrics import (
+    MetricsTracker,
+    plot_training_curves,
+)
 from bidding_train_env.offline_eval.offline_env import OfflineEnv
 from bidding_train_env.offline_eval.test_dataloader import TestDataLoader
 
@@ -204,8 +208,11 @@ class OfflineMetricTracker:
         self.eval_interval = eval_interval
         self.csv_path = os.path.join(output_dir, "training_curve.csv")
         self.best_path = os.path.join(output_dir, "best_metrics.json")
+        self.metrics_path = os.path.join(output_dir, "metrics.json")
+        self.training_tracker = MetricsTracker()
         self.metric_modes = {
             "continuous_raw_score": "max",
+            "sparse_raw_score": "max",
             "continuous_reward": "max",
             "cpa_exceedance_rate": "min",
         }
@@ -241,14 +248,18 @@ class OfflineMetricTracker:
             metrics["checkpoint_path"] = checkpoint_path
 
         self._append_metrics(metrics)
+        self._log_training_iteration(metrics)
         updated_metrics = self._update_best_metrics(metrics)
         self._write_best_metrics()
+        self.training_tracker.save(self.metrics_path)
+        plot_training_curves(self.training_tracker, self.output_dir)
 
         if updated_metrics:
             logger.info("Updated best validation metrics at step %s: %s", step, ", ".join(updated_metrics))
         logger.info(
-            "Validation metrics at step %s: continuous_raw_score=%.6f continuous_reward=%.6f cpa_exceedance_rate=%.6f",
+            "Validation metrics at step %s: sparse_raw_score=%.6f continuous_raw_score=%.6f continuous_reward=%.6f cpa_exceedance_rate=%.6f",
             step,
+            metrics["sparse_raw_score"],
             metrics["continuous_raw_score"],
             metrics["continuous_reward"],
             metrics["cpa_exceedance_rate"],
@@ -263,6 +274,25 @@ class OfflineMetricTracker:
             if write_header:
                 writer.writeheader()
             writer.writerow(metrics)
+
+    def _log_training_iteration(self, metrics: Dict[str, float]) -> None:
+        q_loss = float(metrics.get("train_q_loss", 0.0))
+        v_loss = float(metrics.get("train_v_loss", 0.0))
+        a_loss = float(metrics.get("train_a_loss", 0.0))
+        self.training_tracker.log_iteration(
+            step=int(metrics["step"]),
+            mean_eval_reward=float(metrics["continuous_reward"]),
+            mean_eval_conversions=float(metrics["sparse_reward"]),
+            mean_eval_score=float(metrics["sparse_raw_score"]),
+            mean_budget_utilization=float(metrics["budget_consumer_ratio"]),
+            continuous_score=float(metrics["continuous_raw_score"]),
+            cpa_exceedance=float(metrics["cpa_exceedance_rate"]),
+            train_loss=(q_loss + v_loss + a_loss) / 3.0,
+            q_loss=q_loss,
+            v_loss=v_loss,
+            a_loss=a_loss,
+            num_groups=int(metrics.get("num_groups", 0)),
+        )
 
     def _update_best_metrics(self, metrics: Dict[str, float]) -> list[str]:
         updated_metrics = []
