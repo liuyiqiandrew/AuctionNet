@@ -79,6 +79,15 @@ NO_HISTORY_KEYS = [
 
 DEFAULT_RWD_WEIGHTS = {"dense": 1.0, "sparse": 0.0}
 
+# Scalar info-dict keys the training callback averages per-rollout. Mix of per-step
+# keys (present every step) and terminal-only keys (filtered by None in the callback).
+INFO_KEYWORDS = (
+    "conversions", "cost", "cpa", "target_cpa", "budget",
+    "avg_pvalues", "score_over_pvalue", "score_over_budget", "score_over_cpa",
+    "cost_over_budget", "target_cpa_over_cpa", "score",
+    "sparse", "dense", "action", "bid",
+)
+
 
 def load_obs_keys(obs_type: str) -> list:
     with open(CONFIGS_DIR / f"{obs_type}.json") as f:

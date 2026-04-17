@@ -24,11 +24,12 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 
 from bidding_train_env.online.callbacks import (
     CustomCheckpointCallback,
-    StdoutEpisodeCallback,
+    JsonRolloutCallback,
 )
 from bidding_train_env.online.definitions import (
     ALGO_CLASS_DICT,
     BC_RANGES,
+    INFO_KEYWORDS,
     OUTPUT_DIR,
     RL_DATA_DIR,
     load_act_keys,
@@ -116,7 +117,7 @@ def make_vec_env(cfgs, log_dir, use_dummy=False):
     def make_thunk(cfg):
         def _thunk():
             env = EnvironmentFactory.create(**cfg)
-            return Monitor(env, log_dir)
+            return Monitor(env, log_dir, info_keywords=INFO_KEYWORDS)
         return _thunk
 
     thunks = [make_thunk(c) for c in cfgs]
@@ -178,7 +179,11 @@ def main():
         save_vecnormalize=True,
         verbose=2,
     )
-    stdout_cb = StdoutEpisodeCallback(log_interval=args.log_interval)
+    rollout_cb = JsonRolloutCallback(
+        info_keywords=INFO_KEYWORDS,
+        log_path=log_dir / "rollout_log.jsonl",
+        log_interval=args.log_interval,
+    )
 
     trainer = OnlineTrainer(
         algo=args.algo,
@@ -186,7 +191,7 @@ def main():
         load_model_path=model_path,
         log_dir=str(log_dir),
         model_config=model_cfg,
-        callbacks=[stdout_cb, ckpt_cb],
+        callbacks=[rollout_cb, ckpt_cb],
         timesteps=args.num_steps,
     )
     trainer.train()

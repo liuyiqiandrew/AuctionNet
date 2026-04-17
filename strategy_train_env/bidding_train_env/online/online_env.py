@@ -212,10 +212,12 @@ class BiddingEnv(gym.Env):
             "dense": dense_reward,
             "sparse": sparse_reward,
             "bid": float(np.mean(advertiser_bids)) if len(advertiser_bids) else 0.0,
-            "action_norm": float(np.sum(advertiser_bids) / (np.sum(pvalues) + self.EPS) / self.target_cpa),
+            "action": float(np.sum(advertiser_bids) / (np.sum(pvalues) + self.EPS) / self.target_cpa),
         }
         if terminated:
             cpa = self.total_cpa
+            pv_hist = self.history_info["pvalues_mean"]
+            avg_pvalues = float(np.mean(pv_hist)) if pv_hist else 0.0
             info.update(
                 score=sparse_reward,
                 conversions=self.total_conversions,
@@ -223,6 +225,10 @@ class BiddingEnv(gym.Env):
                 cpa=cpa,
                 target_cpa=self.target_cpa,
                 budget=self.total_budget,
+                avg_pvalues=avg_pvalues,
+                score_over_pvalue=(sparse_reward / avg_pvalues) if avg_pvalues > 0 else 0.0,
+                score_over_budget=(sparse_reward / self.total_budget) if self.total_budget > 0 else 0.0,
+                score_over_cpa=(sparse_reward / cpa) if cpa > 0 else 0.0,
                 cost_over_budget=self.total_cost / max(self.total_budget, self.EPS),
                 target_cpa_over_cpa=(self.target_cpa / cpa) if cpa > 0 else 0.0,
                 advertiser=int(self.advertiser),
