@@ -1,6 +1,8 @@
+import argparse
 import concurrent.futures
 import logging
 import os
+import random
 import re
 import sys
 import time
@@ -34,7 +36,10 @@ DEFAULT_CACHE_DIR = "./data/traffic/training_data_60_rlData_folder"
 DEFAULT_VALIDATION_DATA_PATH = "./data/traffic/period-27.csv"
 DEFAULT_TRAIN_STEPS = 100000
 DEFAULT_BATCH_SIZE = 1024
+DEFAULT_EVAL_INTERVAL = 500
 DEFAULT_LOG_INTERVAL = 100
+DEFAULT_MAX_VALIDATION_GROUPS = 8
+DEFAULT_SAVE_ROOT = "saved_model/IQL60test"
 TRAIN_DATA_FIELDS = (
     "states",
     "actions",
@@ -53,6 +58,16 @@ NORMALIZED_CACHE_FIELDS = (
     "state_mean",
     "state_std",
 )
+
+
+def _set_random_seeds(seed):
+    if seed is None:
+        return
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def _period_cache_path(cache_dir, period):
@@ -167,6 +182,7 @@ def _load_or_build_normalized_training_cache(
     raw_data_dir=DEFAULT_RAW_DATA_DIR,
     cache_dir=DEFAULT_CACHE_DIR,
     periods=TRAIN_PERIODS,
+    cache_workers=None,
 ):
     combined_cache_base = _combined_cache_base(cache_dir, periods)
     combined_cache_path = f"{combined_cache_base}.npz"
@@ -177,6 +193,7 @@ def _load_or_build_normalized_training_cache(
             raw_data_dir=raw_data_dir,
             cache_dir=cache_dir,
             periods=periods,
+            cache_workers=cache_workers,
         )
         _normalize_training_arrays(combined_cache_path, normalized_cache_path)
 
@@ -426,8 +443,9 @@ def build_iql60_metric_tracker(
     normalize_dict,
     save_root,
     validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
-    eval_interval=1000,
-    max_validation_groups=32,
+    eval_interval=DEFAULT_EVAL_INTERVAL,
+    max_validation_groups=DEFAULT_MAX_VALIDATION_GROUPS,
+    save_checkpoints=True,
 ):
     if eval_interval <= 0:
         return None
@@ -446,15 +464,19 @@ def build_iql60_metric_tracker(
         return save_iql60_checkpoint(model, normalize_dict, save_root, step)
 
     logger.info(
-        "IQL60 offline metric tracking enabled: eval_interval=%s validation_data_path=%s max_validation_groups=%s",
+        (
+            "IQL60 offline metric tracking enabled: eval_interval=%s "
+            "validation_data_path=%s max_validation_groups=%s save_checkpoints=%s"
+        ),
         eval_interval,
         validation_data_path,
         max_validation_groups,
+        save_checkpoints,
     )
     return OfflineMetricTracker(
         output_dir=save_root,
         evaluator=evaluator,
-        checkpoint_saver=checkpoint_saver,
+        checkpoint_saver=checkpoint_saver if save_checkpoints else (lambda step: ""),
         eval_interval=eval_interval,
     )
 
@@ -635,7 +657,12 @@ def _build_period_cache_task(period, raw_data_dir, cache_dir):
     return cache_path, len(frame)
 
 
-def ensure_train_data_60(raw_data_dir=DEFAULT_RAW_DATA_DIR, cache_dir=DEFAULT_CACHE_DIR, periods=TRAIN_PERIODS):
+def ensure_train_data_60(
+    raw_data_dir=DEFAULT_RAW_DATA_DIR,
+    cache_dir=DEFAULT_CACHE_DIR,
+    periods=TRAIN_PERIODS,
+    cache_workers=None,
+):
     os.makedirs(cache_dir, exist_ok=True)
     combined_path = f"{_combined_cache_base(cache_dir, periods)}.npz"
     if os.path.exists(combined_path):
@@ -647,7 +674,11 @@ def ensure_train_data_60(raw_data_dir=DEFAULT_RAW_DATA_DIR, cache_dir=DEFAULT_CA
         if not os.path.exists(_period_cache_path(cache_dir, period))
     ]
     if missing_periods:
-        max_workers = min(len(missing_periods), max(1, min(8, _get_cpu_thread_count())))
+        if cache_workers is None:
+            max_workers = max(1, min(8, _get_cpu_thread_count()))
+        else:
+            max_workers = max(1, int(cache_workers))
+        max_workers = min(len(missing_periods), max_workers)
         logger.info(
             "Building %s missing 60-dim period caches with %s workers",
             len(missing_periods),
@@ -695,7 +726,7 @@ def train_model_steps(
         states, actions, rewards, next_states, terminals = replay_buffer.sample(batch_size)
         q_loss, v_loss, a_loss = model.step(states, actions, rewards, next_states, terminals)
         step = i + 1
-        if step == 1 or step % log_interval == 0 or step == step_num:
+        if step == 1 or (log_interval > 0 and step % log_interval == 0) or step == step_num:
             logger.info("Step: %s Q_loss: %s V_loss: %s A_loss: %s", step, q_loss, v_loss, a_loss)
         if metric_tracker is not None:
             metric_tracker.maybe_evaluate(
@@ -719,19 +750,23 @@ def test_trained_model(model, replay_buffer):
 
 def train_iql60_model(
     step_num=DEFAULT_TRAIN_STEPS,
-    eval_interval=1000,
+    eval_interval=DEFAULT_EVAL_INTERVAL,
     validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
-    max_validation_groups=32,
+    max_validation_groups=DEFAULT_MAX_VALIDATION_GROUPS,
     batch_size=DEFAULT_BATCH_SIZE,
     log_interval=DEFAULT_LOG_INTERVAL,
+    save_root=DEFAULT_SAVE_ROOT,
+    seed=1,
+    save_eval_checkpoints=True,
+    cache_workers=None,
 ):
+    _set_random_seeds(seed)
     _configure_torch_cpu_threads()
     t0 = time.time()
-    training_payload, normalize_dict = _load_or_build_normalized_training_cache()
+    training_payload, normalize_dict = _load_or_build_normalized_training_cache(cache_workers=cache_workers)
     logger.info("IQL60 cache preparation finished in %.1fs", time.time() - t0)
 
     t1 = time.time()
-    save_root = "saved_model/IQL60test"
     save_normalize_dict(normalize_dict, save_root)
     logger.info("Loaded normalized cached IQL60 arrays in %.1fs", time.time() - t1)
 
@@ -757,6 +792,7 @@ def train_iql60_model(
         validation_data_path=validation_data_path,
         eval_interval=eval_interval,
         max_validation_groups=max_validation_groups,
+        save_checkpoints=save_eval_checkpoints,
     )
     train_model_steps(
         model,
@@ -776,5 +812,40 @@ def run_iql_60():
     train_iql60_model()
 
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Train IQL60 on CPU resources.")
+    parser.add_argument("--steps", type=int, default=DEFAULT_TRAIN_STEPS)
+    parser.add_argument("--eval-interval", type=int, default=DEFAULT_EVAL_INTERVAL)
+    parser.add_argument("--max-validation-groups", type=int, default=DEFAULT_MAX_VALIDATION_GROUPS)
+    parser.add_argument("--validation-data-path", default=DEFAULT_VALIDATION_DATA_PATH)
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    parser.add_argument("--log-interval", type=int, default=DEFAULT_LOG_INTERVAL)
+    parser.add_argument("--save-root", default=DEFAULT_SAVE_ROOT)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--cache-workers", type=int, default=None)
+    parser.add_argument(
+        "--no-eval-checkpoints",
+        action="store_true",
+        help="Record validation metrics without saving per-eval model checkpoint directories.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    train_iql60_model(
+        step_num=args.steps,
+        eval_interval=args.eval_interval,
+        validation_data_path=args.validation_data_path,
+        max_validation_groups=args.max_validation_groups,
+        batch_size=args.batch_size,
+        log_interval=args.log_interval,
+        save_root=args.save_root,
+        seed=args.seed,
+        save_eval_checkpoints=not args.no_eval_checkpoints,
+        cache_workers=args.cache_workers,
+    )
+
+
 if __name__ == "__main__":
-    run_iql_60()
+    main()

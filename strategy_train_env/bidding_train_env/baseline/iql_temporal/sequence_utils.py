@@ -4,6 +4,42 @@ from collections import deque
 import numpy as np
 import torch
 
+BASE_STATE_DIM = 16
+TRANSITION_V1_SCHEMA = "transition_v1"
+TRANSITION_V2_SCHEMA = "transition_v2"
+STATE_ONLY_SCHEMA = "state_only"
+TRANSITION_V1_TOKEN_DIM = 21
+TRANSITION_V2_TOKEN_DIM = 25
+PREV_DONE_INDEX = 20
+TOKEN_SCHEMA_DIMS = {
+    STATE_ONLY_SCHEMA: BASE_STATE_DIM,
+    TRANSITION_V1_SCHEMA: TRANSITION_V1_TOKEN_DIM,
+    TRANSITION_V2_SCHEMA: TRANSITION_V2_TOKEN_DIM,
+}
+TOKEN_SCHEMA_FIELDS = {
+    STATE_ONLY_SCHEMA: [f"state_{idx}" for idx in range(BASE_STATE_DIM)],
+    TRANSITION_V1_SCHEMA: [
+        *[f"state_{idx}" for idx in range(BASE_STATE_DIM)],
+        "prev_action",
+        "prev_sparse_reward",
+        "prev_continuous_reward",
+        "prev_budget_delta",
+        "prev_done",
+    ],
+    TRANSITION_V2_SCHEMA: [
+        *[f"state_{idx}" for idx in range(BASE_STATE_DIM)],
+        "prev_action",
+        "prev_sparse_reward",
+        "prev_continuous_reward",
+        "prev_budget_delta",
+        "prev_done",
+        "prev_cost_ratio",
+        "prev_win_rate",
+        "prev_mean_lwc",
+        "prev_num_pv_norm",
+    ],
+}
+
 
 def safe_literal_eval(val):
     """Safely parse a serialized Python literal used in cached RL data.
@@ -171,6 +207,214 @@ def apply_normalize(state, normalize_dict):
     return state
 
 
+def _to_state_array(state, state_dim=BASE_STATE_DIM):
+    state_array = np.asarray(state, dtype=np.float32)
+    if state_array.shape[0] != state_dim:
+        raise ValueError(f"Expected state_dim={state_dim}, got shape={state_array.shape}")
+    return state_array
+
+
+def token_binary_indices(token_schema):
+    """Return token indices that should not be min-max normalized."""
+    if token_schema in {TRANSITION_V1_SCHEMA, TRANSITION_V2_SCHEMA}:
+        return {PREV_DONE_INDEX}
+    return set()
+
+
+def fit_token_normalize_dict(tokens, token_schema):
+    """Fit min-max normalization stats for temporal tokens."""
+    token_array = np.asarray(tokens, dtype=np.float32)
+    binary_indices = token_binary_indices(token_schema)
+    stats = {}
+    for index in range(token_array.shape[1]):
+        if index in binary_indices:
+            continue
+        values = token_array[:, index]
+        stats[index] = {
+            "min": float(np.min(values)),
+            "max": float(np.max(values)),
+            "mean": float(np.mean(values)),
+            "std": float(np.std(values)),
+        }
+    return stats
+
+
+def apply_token_normalize(token, token_normalize_dict):
+    """Apply saved min-max token normalization stats."""
+    normalized = np.asarray(token, dtype=np.float32).copy()
+    for key, value in token_normalize_dict.items():
+        index = int(key)
+        min_value = value["min"]
+        max_value = value["max"]
+        normalized[index] = (
+            (normalized[index] - min_value) / (max_value - min_value + 0.01)
+            if max_value >= min_value
+            else 0.0
+        )
+    return normalized
+
+
+def _transition_v1_extras(row, previous):
+    current_budget_left = _to_state_array(row["state"])[1]
+    previous_budget_left = previous.get("budget_left")
+    prev_budget_delta = (
+        max(float(previous_budget_left) - float(current_budget_left), 0.0)
+        if previous_budget_left is not None
+        else 0.0
+    )
+    return [
+        previous.get("action", 0.0),
+        previous.get("sparse_reward", 0.0),
+        previous.get("continuous_reward", 0.0),
+        prev_budget_delta,
+        previous.get("done", 0.0),
+    ]
+
+
+def _transition_v2_extras(previous):
+    return [
+        previous.get("cost_ratio", 0.0),
+        previous.get("win_rate", 0.0),
+        previous.get("mean_lwc", 0.0),
+        previous.get("num_pv_norm", 0.0),
+    ]
+
+
+def _next_previous_state(row):
+    budget = float(row.get("budget", 0.0))
+    tick_cost = float(row.get("tick_cost", 0.0))
+    tick_num_pv = float(row.get("tick_num_pv", 0.0))
+    return {
+        "action": float(row.get("action", 0.0)),
+        "sparse_reward": float(row.get("reward", 0.0)),
+        "continuous_reward": float(row.get("reward_continuous", 0.0)),
+        "done": float(row.get("done", 0.0)),
+        "budget_left": float(_to_state_array(row["state"])[1]),
+        "cost_ratio": tick_cost / budget if budget > 0 else 0.0,
+        "win_rate": float(row.get("tick_win_rate", 0.0)),
+        "mean_lwc": float(row.get("tick_mean_lwc", 0.0)),
+        "num_pv_norm": tick_num_pv,
+    }
+
+
+def build_temporal_token(raw_state, token_schema, previous_features=None):
+    """Build one unnormalized temporal token from a raw 16-dim state."""
+    previous_features = previous_features or {}
+    raw_state = _to_state_array(raw_state)
+    if token_schema == STATE_ONLY_SCHEMA:
+        return raw_state
+    if token_schema not in {TRANSITION_V1_SCHEMA, TRANSITION_V2_SCHEMA}:
+        raise ValueError(f"Unknown temporal token schema: {token_schema}")
+
+    current_budget_left = float(raw_state[1])
+    previous_budget_left = previous_features.get("budget_left")
+    prev_budget_delta = (
+        max(float(previous_budget_left) - current_budget_left, 0.0)
+        if previous_budget_left is not None
+        else float(previous_features.get("budget_delta", 0.0))
+    )
+    extras = [
+        float(previous_features.get("action", 0.0)),
+        float(previous_features.get("sparse_reward", 0.0)),
+        float(previous_features.get("continuous_reward", 0.0)),
+        prev_budget_delta,
+        float(previous_features.get("done", 0.0)),
+    ]
+    if token_schema == TRANSITION_V2_SCHEMA:
+        extras.extend(
+            [
+                float(previous_features.get("cost_ratio", 0.0)),
+                float(previous_features.get("win_rate", 0.0)),
+                float(previous_features.get("mean_lwc", 0.0)),
+                float(previous_features.get("num_pv_norm", 0.0)),
+            ]
+        )
+    return np.concatenate([raw_state, np.asarray(extras, dtype=np.float32)]).astype(np.float32)
+
+
+def add_temporal_token_columns(training_data, token_schema, token_normalize_dict=None):
+    """Add raw and normalized temporal token columns to a training dataframe."""
+    if token_schema == STATE_ONLY_SCHEMA:
+        training_data["temporal_token"] = training_data["state"]
+        training_data["normalize_token"] = training_data["normalize_state"]
+        return token_normalize_dict
+    if token_schema not in {TRANSITION_V1_SCHEMA, TRANSITION_V2_SCHEMA}:
+        raise ValueError(f"Unknown temporal token schema: {token_schema}")
+
+    group_cols = ["deliveryPeriodIndex", "advertiserNumber"]
+    sorted_data = training_data.sort_values(group_cols + ["timeStepIndex"]).copy()
+    tokens = []
+    for _, trajectory in sorted_data.groupby(group_cols, sort=False):
+        previous = {}
+        for _, row in trajectory.iterrows():
+            state = _to_state_array(row["state"])
+            extras = _transition_v1_extras(row, previous)
+            if token_schema == TRANSITION_V2_SCHEMA:
+                extras.extend(_transition_v2_extras(previous))
+            token = np.concatenate([state, np.asarray(extras, dtype=np.float32)]).astype(np.float32)
+            tokens.append(token)
+            previous = _next_previous_state(row)
+
+    if token_normalize_dict is None:
+        token_normalize_dict = fit_token_normalize_dict(tokens, token_schema)
+    sorted_data["temporal_token"] = [tuple(float(value) for value in token) for token in tokens]
+    sorted_data["normalize_token"] = [
+        tuple(float(value) for value in apply_token_normalize(token, token_normalize_dict))
+        for token in tokens
+    ]
+
+    training_data.drop(columns=["temporal_token", "normalize_token"], errors="ignore", inplace=True)
+    training_data[["temporal_token", "normalize_token"]] = sorted_data[
+        ["temporal_token", "normalize_token"]
+    ].reindex(training_data.index)
+    return token_normalize_dict
+
+
+def previous_features_from_history(
+    token_schema,
+    budget,
+    history_pvalue_info,
+    history_bid,
+    history_auction_result,
+    history_impression_result,
+    history_least_winning_cost,
+):
+    """Build online previous-transition features from validation history."""
+    if token_schema == STATE_ONLY_SCHEMA or not history_bid:
+        return {}
+
+    prev_bid = np.asarray(history_bid[-1], dtype=np.float32)
+    prev_auction = np.asarray(history_auction_result[-1], dtype=np.float32)
+    prev_impression = np.asarray(history_impression_result[-1], dtype=np.float32)
+    prev_pvalue_info = np.asarray(history_pvalue_info[-1], dtype=np.float32)
+    prev_lwc = np.asarray(history_least_winning_cost[-1], dtype=np.float32)
+    prev_cost = prev_auction[:, 2] if prev_auction.ndim == 2 and prev_auction.shape[1] > 2 else np.zeros(0)
+    prev_win = prev_auction[:, 0] if prev_auction.ndim == 2 else np.zeros(0)
+    prev_pvalues = prev_pvalue_info[:, 0] if prev_pvalue_info.ndim == 2 else np.zeros(0)
+    total_value = float(np.sum(prev_pvalues))
+    action = float(np.sum(prev_bid) / total_value) if total_value > 0 else 0.0
+    sparse_reward = float(np.sum(prev_impression[:, 0])) if prev_impression.ndim == 2 else 0.0
+    continuous_reward = float(np.sum(prev_pvalues * prev_win)) if prev_pvalues.size == prev_win.size else 0.0
+    cost = float(np.sum(prev_cost))
+    previous_features = {
+        "action": action,
+        "sparse_reward": sparse_reward,
+        "continuous_reward": continuous_reward,
+        "budget_delta": cost / budget if budget > 0 else 0.0,
+        "done": 0.0,
+    }
+    if token_schema == TRANSITION_V2_SCHEMA:
+        previous_features.update(
+            {
+                "cost_ratio": cost / budget if budget > 0 else 0.0,
+                "win_rate": float(np.mean(prev_win)) if prev_win.size else 0.0,
+                "mean_lwc": float(np.mean(prev_lwc)) if prev_lwc.size else 0.0,
+                "num_pv_norm": float(prev_lwc.size),
+            }
+        )
+    return previous_features
+
+
 class TemporalContextBuffer:
     """Maintain the last ``K`` normalized states for online inference.
 
@@ -259,7 +503,7 @@ class TemporalReplayBuffer:
         self.dones = np.ascontiguousarray(dones, dtype=np.float32)
 
     @classmethod
-    def from_dataframe(cls, training_data, seq_len, state_dim, is_normalize=True):
+    def from_dataframe(cls, training_data, seq_len, state_dim, is_normalize=True, token_col=None):
         """Build temporal transition windows from per-tick RL training data.
 
         Parameters
@@ -280,7 +524,7 @@ class TemporalReplayBuffer:
         TemporalReplayBuffer
             Buffer populated with one temporal transition per dataframe row.
         """
-        state_col = "normalize_state" if is_normalize else "state"
+        state_col = token_col or ("normalize_state" if is_normalize else "state")
         reward_col = "normalize_reward" if is_normalize else "reward"
         group_cols = ["deliveryPeriodIndex", "advertiserNumber"]
         sorted_data = training_data.sort_values(group_cols + ["timeStepIndex"])

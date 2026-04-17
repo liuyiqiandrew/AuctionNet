@@ -1,6 +1,8 @@
+import argparse
 import numpy as np
 import logging
 import os
+import random
 import re
 import torch
 from bidding_train_env.common.utils import normalize_state, normalize_reward, save_normalize_dict
@@ -23,6 +25,21 @@ TRAIN_PERIODS = tuple(range(7, 27))
 DEFAULT_TRAIN_DATA_DIR = "./data/traffic/training_data_rlData_folder"
 DEFAULT_VALIDATION_DATA_PATH = "./data/traffic/period-27.csv"
 DEFAULT_TRAIN_STEPS = 100000
+DEFAULT_EVAL_INTERVAL = 500
+DEFAULT_BATCH_SIZE = 100
+DEFAULT_LOG_INTERVAL = 100
+DEFAULT_MAX_VALIDATION_GROUPS = 8
+DEFAULT_SAVE_ROOT = "saved_model/IQLtest"
+
+
+def _set_random_seeds(seed):
+    if seed is None:
+        return
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def _train_data_cache_path(train_data_dir=DEFAULT_TRAIN_DATA_DIR, periods=TRAIN_PERIODS):
@@ -186,8 +203,9 @@ def build_iql_metric_tracker(
     normalize_dict,
     save_root,
     validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
-    eval_interval=1000,
-    max_validation_groups=32,
+    eval_interval=DEFAULT_EVAL_INTERVAL,
+    max_validation_groups=DEFAULT_MAX_VALIDATION_GROUPS,
+    save_checkpoints=True,
 ):
     if eval_interval <= 0:
         return None
@@ -206,15 +224,19 @@ def build_iql_metric_tracker(
         return save_iql_checkpoint(model, normalize_dict, save_root, step)
 
     logger.info(
-        "Offline metric tracking enabled: eval_interval=%s validation_data_path=%s max_validation_groups=%s",
+        (
+            "Offline metric tracking enabled: eval_interval=%s "
+            "validation_data_path=%s max_validation_groups=%s save_checkpoints=%s"
+        ),
         eval_interval,
         validation_data_path,
         max_validation_groups,
+        save_checkpoints,
     )
     return OfflineMetricTracker(
         output_dir=save_root,
         evaluator=evaluator,
-        checkpoint_saver=checkpoint_saver,
+        checkpoint_saver=checkpoint_saver if save_checkpoints else (lambda step: ""),
         eval_interval=eval_interval,
     )
 
@@ -320,16 +342,21 @@ def _write_training_report(
 
 def train_iql_model(
     step_num=DEFAULT_TRAIN_STEPS,
-    eval_interval=1000,
+    eval_interval=DEFAULT_EVAL_INTERVAL,
     validation_data_path=DEFAULT_VALIDATION_DATA_PATH,
-    max_validation_groups=32,
+    max_validation_groups=DEFAULT_MAX_VALIDATION_GROUPS,
+    batch_size=DEFAULT_BATCH_SIZE,
+    log_interval=DEFAULT_LOG_INTERVAL,
+    save_root=DEFAULT_SAVE_ROOT,
+    seed=1,
+    save_eval_checkpoints=True,
 ):
     """
     Train the IQL model.
     """
+    _set_random_seeds(seed)
     train_data_path = ensure_train_data_cache()
     training_data = pd.read_csv(train_data_path)
-    save_root = "saved_model/IQLtest"
 
     def safe_literal_eval(val):
         if pd.isna(val):
@@ -369,8 +396,16 @@ def train_iql_model(
         validation_data_path=validation_data_path,
         eval_interval=eval_interval,
         max_validation_groups=max_validation_groups,
+        save_checkpoints=save_eval_checkpoints,
     )
-    train_model_steps(model, replay_buffer, metric_tracker=metric_tracker, step_num=step_num)
+    train_model_steps(
+        model,
+        replay_buffer,
+        metric_tracker=metric_tracker,
+        step_num=step_num,
+        batch_size=batch_size,
+        log_interval=log_interval,
+    )
 
     # Save model
     model.save_jit(save_root)
@@ -400,12 +435,20 @@ def add_to_replay_buffer(replay_buffer, training_data, is_normalize):
                                np.array([done]))
 
 
-def train_model_steps(model, replay_buffer, metric_tracker=None, step_num=DEFAULT_TRAIN_STEPS, batch_size=100):
+def train_model_steps(
+    model,
+    replay_buffer,
+    metric_tracker=None,
+    step_num=DEFAULT_TRAIN_STEPS,
+    batch_size=DEFAULT_BATCH_SIZE,
+    log_interval=DEFAULT_LOG_INTERVAL,
+):
     for i in range(step_num):
         states, actions, rewards, next_states, terminals = replay_buffer.sample(batch_size)
         q_loss, v_loss, a_loss = model.step(states, actions, rewards, next_states, terminals)
         step = i + 1
-        logger.info(f'Step: {step} Q_loss: {q_loss} V_loss: {v_loss} A_loss: {a_loss}')
+        if step == 1 or (log_interval > 0 and step % log_interval == 0) or step == step_num:
+            logger.info(f'Step: {step} Q_loss: {q_loss} V_loss: {v_loss} A_loss: {a_loss}')
         if metric_tracker is not None:
             metric_tracker.maybe_evaluate(
                 step,
@@ -434,5 +477,38 @@ def run_iql():
     train_iql_model()
 
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Train IQL on CPU or GPU resources.")
+    parser.add_argument("--steps", type=int, default=DEFAULT_TRAIN_STEPS)
+    parser.add_argument("--eval-interval", type=int, default=DEFAULT_EVAL_INTERVAL)
+    parser.add_argument("--max-validation-groups", type=int, default=DEFAULT_MAX_VALIDATION_GROUPS)
+    parser.add_argument("--validation-data-path", default=DEFAULT_VALIDATION_DATA_PATH)
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    parser.add_argument("--log-interval", type=int, default=DEFAULT_LOG_INTERVAL)
+    parser.add_argument("--save-root", default=DEFAULT_SAVE_ROOT)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument(
+        "--no-eval-checkpoints",
+        action="store_true",
+        help="Record validation metrics without saving per-eval model checkpoint directories.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    train_iql_model(
+        step_num=args.steps,
+        eval_interval=args.eval_interval,
+        validation_data_path=args.validation_data_path,
+        max_validation_groups=args.max_validation_groups,
+        batch_size=args.batch_size,
+        log_interval=args.log_interval,
+        save_root=args.save_root,
+        seed=args.seed,
+        save_eval_checkpoints=not args.no_eval_checkpoints,
+    )
+
+
 if __name__ == '__main__':
-    run_iql()
+    main()

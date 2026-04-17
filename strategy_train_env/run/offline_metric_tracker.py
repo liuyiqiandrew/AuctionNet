@@ -41,6 +41,12 @@ def _compute_cpa_exceedance(cpa: float, cpa_constraint: float) -> float:
     return float("inf")
 
 
+def _compute_cpa_violation(cpa_exceedance_rate: float) -> float:
+    if math.isfinite(cpa_exceedance_rate):
+        return max(0.0, cpa_exceedance_rate)
+    return float("inf")
+
+
 def evaluate_offline_bidding_strategy(
     strategy_factory: Callable[[], object],
     file_path: str,
@@ -166,6 +172,7 @@ def evaluate_offline_bidding_strategy(
         continuous_raw_score = get_score_neurips(continuous_reward_total, continuous_cpa, agent.cpa)
         sparse_raw_score = get_score_neurips(sparse_reward_total, sparse_cpa, agent.cpa)
         cpa_exceedance_rate = _compute_cpa_exceedance(continuous_cpa, agent.cpa)
+        cpa_violation_rate = _compute_cpa_violation(cpa_exceedance_rate)
         budget_consumer_ratio = all_cost / agent.budget if agent.budget > 0 else 0.0
 
         group_metrics.append(
@@ -173,6 +180,7 @@ def evaluate_offline_bidding_strategy(
                 "continuous_raw_score": continuous_raw_score,
                 "continuous_reward": continuous_reward_total,
                 "cpa_exceedance_rate": cpa_exceedance_rate,
+                "cpa_violation_rate": cpa_violation_rate,
                 "budget_consumer_ratio": budget_consumer_ratio,
                 "sparse_raw_score": sparse_raw_score,
                 "sparse_reward": sparse_reward_total,
@@ -200,11 +208,13 @@ class OfflineMetricTracker:
         output_dir: str,
         evaluator: Callable[[], Dict[str, float]],
         checkpoint_saver: Optional[Callable[[int], str]] = None,
+        best_checkpoint_promoter: Optional[Callable[[Dict[str, float]], None]] = None,
         eval_interval: int = 1000,
     ):
         self.output_dir = output_dir
         self.evaluator = evaluator
         self.checkpoint_saver = checkpoint_saver
+        self.best_checkpoint_promoter = best_checkpoint_promoter
         self.eval_interval = eval_interval
         self.csv_path = os.path.join(output_dir, "training_curve.csv")
         self.best_path = os.path.join(output_dir, "best_metrics.json")
@@ -214,7 +224,7 @@ class OfflineMetricTracker:
             "continuous_raw_score": "max",
             "sparse_raw_score": "max",
             "continuous_reward": "max",
-            "cpa_exceedance_rate": "min",
+            "cpa_violation_rate": "min",
         }
         self.best_metrics = {
             metric_name: {
@@ -256,12 +266,15 @@ class OfflineMetricTracker:
 
         if updated_metrics:
             logger.info("Updated best validation metrics at step %s: %s", step, ", ".join(updated_metrics))
+            if "sparse_raw_score" in updated_metrics and self.best_checkpoint_promoter is not None:
+                self.best_checkpoint_promoter(metrics)
         logger.info(
-            "Validation metrics at step %s: sparse_raw_score=%.6f continuous_raw_score=%.6f continuous_reward=%.6f cpa_exceedance_rate=%.6f",
+            "Validation metrics at step %s: sparse_raw_score=%.6f continuous_raw_score=%.6f continuous_reward=%.6f cpa_violation_rate=%.6f cpa_exceedance_rate=%.6f",
             step,
             metrics["sparse_raw_score"],
             metrics["continuous_raw_score"],
             metrics["continuous_reward"],
+            metrics["cpa_violation_rate"],
             metrics["cpa_exceedance_rate"],
         )
         return metrics

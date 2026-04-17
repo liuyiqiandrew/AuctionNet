@@ -66,6 +66,32 @@ def _encode_sequence(gru, sequences, lengths):
     return hidden[-1]
 
 
+def _latest_valid_token(sequences, lengths):
+    """Return the last unpadded token from each sequence."""
+    if sequences.dim() == 2:
+        sequences = sequences.unsqueeze(0)
+    lengths = _prepare_lengths(lengths, sequences.size(1), sequences.device)
+    batch_index = torch.arange(sequences.size(0), device=sequences.device)
+    token_index = lengths - 1
+    return sequences[batch_index, token_index]
+
+
+class TemporalFeatureMixin:
+    """Shared GRU feature extraction for separate temporal IQL heads."""
+
+    def _init_temporal_features(self, dim_observation, encoder_hidden_dim, use_residual_latest_state):
+        self.use_residual_latest_state = use_residual_latest_state
+        self.feature_dim = encoder_hidden_dim + (dim_observation if use_residual_latest_state else 0)
+        self.feature_norm = nn.LayerNorm(self.feature_dim) if use_residual_latest_state else nn.Identity()
+
+    def _temporal_features(self, state_sequences, sequence_lengths):
+        sequence_embedding = _encode_sequence(self.encoder, state_sequences, sequence_lengths)
+        if self.use_residual_latest_state:
+            latest_token = _latest_valid_token(state_sequences, sequence_lengths)
+            sequence_embedding = torch.cat([sequence_embedding, latest_token], dim=-1)
+        return self.feature_norm(sequence_embedding)
+
+
 class SequenceQ(nn.Module):
     """Sequence-conditioned Q network for temporal IQL.
 
@@ -79,15 +105,21 @@ class SequenceQ(nn.Module):
         Hidden size used by the GRU encoder.
     """
 
-    def __init__(self, dim_observation, dim_action, encoder_hidden_dim):
+    def __init__(self, dim_observation, dim_action, encoder_hidden_dim, use_residual_latest_state=False):
         super().__init__()
         self.encoder = nn.GRU(
             input_size=dim_observation,
             hidden_size=encoder_hidden_dim,
             batch_first=True,
         )
+        TemporalFeatureMixin._init_temporal_features(
+            self,
+            dim_observation,
+            encoder_hidden_dim,
+            use_residual_latest_state,
+        )
         self.action_fc = nn.Linear(dim_action, 64)
-        self.fc1 = nn.Linear(encoder_hidden_dim + 64, 64)
+        self.fc1 = nn.Linear(self.feature_dim + 64, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 1)
 
@@ -108,7 +140,7 @@ class SequenceQ(nn.Module):
         torch.Tensor
             Predicted Q-values with shape ``(batch_size, 1)``.
         """
-        sequence_embedding = _encode_sequence(self.encoder, state_sequences, sequence_lengths)
+        sequence_embedding = TemporalFeatureMixin._temporal_features(self, state_sequences, sequence_lengths)
         action_embedding = self.action_fc(actions)
         embedding = torch.cat([sequence_embedding, action_embedding], dim=-1)
         q = self.fc3(F.relu(self.fc2(F.relu(self.fc1(embedding)))))
@@ -126,14 +158,20 @@ class SequenceV(nn.Module):
         Hidden size used by the GRU encoder.
     """
 
-    def __init__(self, dim_observation, encoder_hidden_dim):
+    def __init__(self, dim_observation, encoder_hidden_dim, use_residual_latest_state=False):
         super().__init__()
         self.encoder = nn.GRU(
             input_size=dim_observation,
             hidden_size=encoder_hidden_dim,
             batch_first=True,
         )
-        self.fc1 = nn.Linear(encoder_hidden_dim, 128)
+        TemporalFeatureMixin._init_temporal_features(
+            self,
+            dim_observation,
+            encoder_hidden_dim,
+            use_residual_latest_state,
+        )
+        self.fc1 = nn.Linear(self.feature_dim, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, 32)
         self.fc4 = nn.Linear(32, 1)
@@ -153,7 +191,7 @@ class SequenceV(nn.Module):
         torch.Tensor
             Predicted state values with shape ``(batch_size, 1)``.
         """
-        sequence_embedding = _encode_sequence(self.encoder, state_sequences, sequence_lengths)
+        sequence_embedding = TemporalFeatureMixin._temporal_features(self, state_sequences, sequence_lengths)
         result = F.relu(self.fc1(sequence_embedding))
         result = F.relu(self.fc2(result))
         result = F.relu(self.fc3(result))
@@ -177,7 +215,15 @@ class SequenceActor(nn.Module):
         Upper clamp for the Gaussian log standard deviation.
     """
 
-    def __init__(self, dim_observation, dim_action, encoder_hidden_dim, log_std_min=-10, log_std_max=2):
+    def __init__(
+        self,
+        dim_observation,
+        dim_action,
+        encoder_hidden_dim,
+        log_std_min=-10,
+        log_std_max=2,
+        use_residual_latest_state=False,
+    ):
         super().__init__()
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
@@ -186,7 +232,13 @@ class SequenceActor(nn.Module):
             hidden_size=encoder_hidden_dim,
             batch_first=True,
         )
-        self.fc1 = nn.Linear(encoder_hidden_dim, 128)
+        TemporalFeatureMixin._init_temporal_features(
+            self,
+            dim_observation,
+            encoder_hidden_dim,
+            use_residual_latest_state,
+        )
+        self.fc1 = nn.Linear(self.feature_dim, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc_mu = nn.Linear(64, dim_action)
         self.fc_std = nn.Linear(64, dim_action)
@@ -207,7 +259,7 @@ class SequenceActor(nn.Module):
             Mean and log standard deviation tensors, each of shape
             ``(batch_size, action_dim)``.
         """
-        sequence_embedding = _encode_sequence(self.encoder, state_sequences, sequence_lengths)
+        sequence_embedding = TemporalFeatureMixin._temporal_features(self, state_sequences, sequence_lengths)
         x = F.relu(self.fc1(sequence_embedding))
         x = F.relu(self.fc2(x))
         mu = self.fc_mu(x)
@@ -234,6 +286,95 @@ class SequenceActor(nn.Module):
     def get_det_action(self, state_sequences, sequence_lengths):
         """Return the deterministic mean action and move it to CPU."""
         mu, _ = self.forward(state_sequences, sequence_lengths)
+        return mu.detach().cpu()
+
+
+class SharedTemporalEncoder(nn.Module):
+    """Shared temporal encoder used by the phase-5 model variant."""
+
+    def __init__(self, dim_observation, encoder_hidden_dim, use_residual_latest_state=True):
+        super().__init__()
+        self.encoder = nn.GRU(
+            input_size=dim_observation,
+            hidden_size=encoder_hidden_dim,
+            batch_first=True,
+        )
+        self.use_residual_latest_state = use_residual_latest_state
+        self.output_dim = encoder_hidden_dim + (dim_observation if use_residual_latest_state else 0)
+        self.feature_norm = nn.LayerNorm(self.output_dim) if use_residual_latest_state else nn.Identity()
+
+    def forward(self, state_sequences, sequence_lengths):
+        sequence_embedding = _encode_sequence(self.encoder, state_sequences, sequence_lengths)
+        if self.use_residual_latest_state:
+            latest_token = _latest_valid_token(state_sequences, sequence_lengths)
+            sequence_embedding = torch.cat([sequence_embedding, latest_token], dim=-1)
+        return self.feature_norm(sequence_embedding)
+
+
+class SharedValueHead(nn.Module):
+    """Value head over a shared temporal feature vector."""
+
+    def __init__(self, feature_dim):
+        super().__init__()
+        self.fc1 = nn.Linear(feature_dim, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(32, 1)
+
+    def forward(self, features):
+        result = F.relu(self.fc1(features))
+        result = F.relu(self.fc2(result))
+        result = F.relu(self.fc3(result))
+        return self.fc4(result)
+
+
+class SharedQHead(nn.Module):
+    """Q head over a shared temporal feature vector and action."""
+
+    def __init__(self, feature_dim, dim_action):
+        super().__init__()
+        self.action_fc = nn.Linear(dim_action, 64)
+        self.fc1 = nn.Linear(feature_dim + 64, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 1)
+
+    def forward(self, features, actions):
+        action_embedding = self.action_fc(actions)
+        embedding = torch.cat([features, action_embedding], dim=-1)
+        return self.fc3(F.relu(self.fc2(F.relu(self.fc1(embedding)))))
+
+
+class SharedActorHead(nn.Module):
+    """Gaussian actor head over a shared temporal feature vector."""
+
+    def __init__(self, feature_dim, dim_action, log_std_min=-10, log_std_max=2):
+        super().__init__()
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
+        self.fc1 = nn.Linear(feature_dim, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc_mu = nn.Linear(64, dim_action)
+        self.fc_std = nn.Linear(64, dim_action)
+
+    def forward(self, features):
+        x = F.relu(self.fc1(features))
+        x = F.relu(self.fc2(x))
+        mu = self.fc_mu(x)
+        log_std = torch.clamp(self.fc_std(x), self.log_std_min, self.log_std_max)
+        return mu, log_std
+
+    def evaluate(self, features):
+        mu, log_std = self.forward(features)
+        dist = Normal(mu, log_std.exp())
+        action = dist.rsample()
+        return action, dist
+
+    def get_action(self, features):
+        action, _ = self.evaluate(features)
+        return action.detach().cpu()
+
+    def get_det_action(self, features):
+        mu, _ = self.forward(features)
         return mu.detach().cpu()
 
 
@@ -285,6 +426,8 @@ class GRUIQL(nn.Module):
         expectile=0.7,
         temperature=3.0,
         encoder_hidden_dim=64,
+        use_residual_latest_state=False,
+        shared_encoder=False,
     ):
         super().__init__()
         self.num_of_states = dim_obs
@@ -297,27 +440,100 @@ class GRUIQL(nn.Module):
         self.expectile = expectile
         self.temperature = temperature
         self.encoder_hidden_dim = encoder_hidden_dim
+        self.use_residual_latest_state = use_residual_latest_state
+        self.shared_encoder = shared_encoder
         self.GAMMA = gamma
         self.tau = tau
 
         torch.random.manual_seed(self.network_random_seed)
-        self.value_net = SequenceV(self.num_of_states, self.encoder_hidden_dim)
-        self.critic1 = SequenceQ(self.num_of_states, self.num_of_actions, self.encoder_hidden_dim)
-        self.critic2 = SequenceQ(self.num_of_states, self.num_of_actions, self.encoder_hidden_dim)
-        self.critic1_target = SequenceQ(self.num_of_states, self.num_of_actions, self.encoder_hidden_dim)
-        self.critic1_target.load_state_dict(self.critic1.state_dict())
-        self.critic2_target = SequenceQ(self.num_of_states, self.num_of_actions, self.encoder_hidden_dim)
-        self.critic2_target.load_state_dict(self.critic2.state_dict())
-        self.actors = SequenceActor(self.num_of_states, self.num_of_actions, self.encoder_hidden_dim)
-
-        self.value_optimizer = Adam(self.value_net.parameters(), lr=self.V_lr)
-        self.critic1_optimizer = Adam(self.critic1.parameters(), lr=self.critic_lr)
-        self.critic2_optimizer = Adam(self.critic2.parameters(), lr=self.critic_lr)
-        self.actor_optimizer = Adam(self.actors.parameters(), lr=self.actor_lr)
+        if self.shared_encoder:
+            self.temporal_encoder = SharedTemporalEncoder(
+                self.num_of_states,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.temporal_encoder_target = deepcopy(self.temporal_encoder)
+            shared_feature_dim = self.temporal_encoder.output_dim
+            self.value_net = SharedValueHead(shared_feature_dim)
+            self.critic1 = SharedQHead(shared_feature_dim, self.num_of_actions)
+            self.critic2 = SharedQHead(shared_feature_dim, self.num_of_actions)
+            self.critic1_target = deepcopy(self.critic1)
+            self.critic2_target = deepcopy(self.critic2)
+            self.actors = SharedActorHead(shared_feature_dim, self.num_of_actions)
+            self.shared_optimizer = Adam(
+                list(self.temporal_encoder.parameters())
+                + list(self.value_net.parameters())
+                + list(self.critic1.parameters())
+                + list(self.critic2.parameters())
+                + list(self.actors.parameters()),
+                lr=self.actor_lr,
+            )
+        else:
+            self.value_net = SequenceV(
+                self.num_of_states,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.critic1 = SequenceQ(
+                self.num_of_states,
+                self.num_of_actions,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.critic2 = SequenceQ(
+                self.num_of_states,
+                self.num_of_actions,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.critic1_target = SequenceQ(
+                self.num_of_states,
+                self.num_of_actions,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.critic1_target.load_state_dict(self.critic1.state_dict())
+            self.critic2_target = SequenceQ(
+                self.num_of_states,
+                self.num_of_actions,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.critic2_target.load_state_dict(self.critic2.state_dict())
+            self.actors = SequenceActor(
+                self.num_of_states,
+                self.num_of_actions,
+                self.encoder_hidden_dim,
+                use_residual_latest_state=self.use_residual_latest_state,
+            )
+            self.value_optimizer = Adam(self.value_net.parameters(), lr=self.V_lr)
+            self.critic1_optimizer = Adam(self.critic1.parameters(), lr=self.critic_lr)
+            self.critic2_optimizer = Adam(self.critic2.parameters(), lr=self.critic_lr)
+            self.actor_optimizer = Adam(self.actors.parameters(), lr=self.actor_lr)
         self.deterministic_action = True
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda:0" if self.use_cuda else "cpu")
         self.to(self.device)
+
+    def optimizer_state_dicts(self):
+        if self.shared_encoder:
+            return {"shared_optimizer": self.shared_optimizer.state_dict()}
+        return {
+            "value_optimizer": self.value_optimizer.state_dict(),
+            "critic1_optimizer": self.critic1_optimizer.state_dict(),
+            "critic2_optimizer": self.critic2_optimizer.state_dict(),
+            "actor_optimizer": self.actor_optimizer.state_dict(),
+        }
+
+    def optimizer_map(self):
+        if self.shared_encoder:
+            return {"shared_optimizer": self.shared_optimizer}
+        return {
+            "value_optimizer": self.value_optimizer,
+            "critic1_optimizer": self.critic1_optimizer,
+            "critic2_optimizer": self.critic2_optimizer,
+            "actor_optimizer": self.actor_optimizer,
+        }
 
     def step(
         self,
@@ -364,6 +580,17 @@ class GRUIQL(nn.Module):
         next_sequence_lengths = next_sequence_lengths.to(self.device)
         dones = dones.to(self.device)
 
+        if self.shared_encoder:
+            return self._shared_step(
+                state_sequences,
+                sequence_lengths,
+                actions,
+                rewards,
+                next_state_sequences,
+                next_sequence_lengths,
+                dones,
+            )
+
         # IQL updates V, then policy, then Q-functions using the same batch.
         self.value_optimizer.zero_grad()
         value_loss = self.calc_value_loss(state_sequences, sequence_lengths, actions)
@@ -400,6 +627,43 @@ class GRUIQL(nn.Module):
             actor_loss.detach().cpu().numpy(),
         )
 
+    def _shared_step(
+        self,
+        state_sequences,
+        sequence_lengths,
+        actions,
+        rewards,
+        next_state_sequences,
+        next_sequence_lengths,
+        dones,
+    ):
+        """Run one combined optimizer update for the shared-encoder variant."""
+        value_loss = self.calc_value_loss(state_sequences, sequence_lengths, actions)
+        actor_loss = self.calc_policy_loss(state_sequences, sequence_lengths, actions)
+        critic1_loss, critic2_loss = self.calc_q_loss(
+            state_sequences,
+            sequence_lengths,
+            actions,
+            rewards,
+            dones,
+            next_state_sequences,
+            next_sequence_lengths,
+        )
+        total_loss = value_loss + actor_loss + critic1_loss + critic2_loss
+        self.shared_optimizer.zero_grad()
+        total_loss.backward()
+        self.shared_optimizer.step()
+
+        self.update_target(self.temporal_encoder, self.temporal_encoder_target)
+        self.update_target(self.critic1, self.critic1_target)
+        self.update_target(self.critic2, self.critic2_target)
+
+        return (
+            critic1_loss.detach().cpu().numpy(),
+            value_loss.detach().cpu().numpy(),
+            actor_loss.detach().cpu().numpy(),
+        )
+
     def take_actions(self, state_sequences, sequence_lengths):
         """Produce actions from temporal state histories.
 
@@ -422,7 +686,13 @@ class GRUIQL(nn.Module):
             sequence_lengths = torch.tensor(sequence_lengths, dtype=torch.long)
         state_sequences = state_sequences.to(self.device)
         sequence_lengths = sequence_lengths.to(self.device)
-        if self.deterministic_action:
+        if self.shared_encoder:
+            features = self.temporal_encoder(state_sequences, sequence_lengths)
+            if self.deterministic_action:
+                actions = self.actors.get_det_action(features)
+            else:
+                actions = self.actors.get_action(features)
+        elif self.deterministic_action:
             actions = self.actors.get_det_action(state_sequences, sequence_lengths)
         else:
             actions = self.actors.get_action(state_sequences, sequence_lengths)
@@ -431,7 +701,11 @@ class GRUIQL(nn.Module):
 
     def forward(self, state_sequences, sequence_lengths):
         """Return deterministic actions for scripted or eval-time inference."""
-        actions = self.actors.get_det_action(state_sequences, sequence_lengths)
+        if self.shared_encoder:
+            features = self.temporal_encoder(state_sequences, sequence_lengths)
+            actions = self.actors.get_det_action(features)
+        else:
+            actions = self.actors.get_det_action(state_sequences, sequence_lengths)
         actions = torch.clamp(actions, min=0)
         return actions
 
@@ -452,6 +726,22 @@ class GRUIQL(nn.Module):
         torch.Tensor
             Scalar actor loss.
         """
+        if self.shared_encoder:
+            with torch.no_grad():
+                features_for_advantage = self.temporal_encoder(state_sequences, sequence_lengths)
+                target_features = self.temporal_encoder_target(state_sequences, sequence_lengths)
+                v = self.value_net(features_for_advantage)
+                q1 = self.critic1_target(target_features, actions)
+                q2 = self.critic2_target(target_features, actions)
+                min_q = torch.min(q1, q2)
+
+            exp_a = torch.exp(min_q - v) * self.temperature
+            exp_a = torch.min(exp_a, torch.tensor([100.0], device=self.device))
+            actor_features = self.temporal_encoder(state_sequences, sequence_lengths)
+            _, dist = self.actors.evaluate(actor_features)
+            log_probs = dist.log_prob(actions)
+            return -(exp_a * log_probs).mean()
+
         with torch.no_grad():
             v = self.value_net(state_sequences, sequence_lengths)
             q1 = self.critic1_target(state_sequences, sequence_lengths, actions)
@@ -483,6 +773,17 @@ class GRUIQL(nn.Module):
         torch.Tensor
             Scalar value loss.
         """
+        if self.shared_encoder:
+            with torch.no_grad():
+                target_features = self.temporal_encoder_target(state_sequences, sequence_lengths)
+                q1 = self.critic1_target(target_features, actions)
+                q2 = self.critic2_target(target_features, actions)
+                min_q = torch.min(q1, q2)
+
+            features = self.temporal_encoder(state_sequences, sequence_lengths)
+            value = self.value_net(features)
+            return self.l2_loss(min_q - value, self.expectile).mean()
+
         with torch.no_grad():
             q1 = self.critic1_target(state_sequences, sequence_lengths, actions)
             q2 = self.critic2_target(state_sequences, sequence_lengths, actions)
@@ -526,6 +827,17 @@ class GRUIQL(nn.Module):
         tuple[torch.Tensor, torch.Tensor]
             Critic losses for ``critic1`` and ``critic2``.
         """
+        if self.shared_encoder:
+            with torch.no_grad():
+                next_features = self.temporal_encoder(next_state_sequences, next_sequence_lengths)
+                next_v = self.value_net(next_features)
+                q_target = rewards + (self.GAMMA * (1 - dones) * next_v)
+
+            features = self.temporal_encoder(state_sequences, sequence_lengths)
+            q1 = self.critic1(features, actions)
+            q2 = self.critic2(features, actions)
+            return ((q1 - q_target) ** 2).mean(), ((q2 - q_target) ** 2).mean()
+
         with torch.no_grad():
             next_v = self.value_net(next_state_sequences, next_sequence_lengths)
             q_target = rewards + (self.GAMMA * (1 - dones) * next_v)
@@ -566,6 +878,8 @@ class GRUIQL(nn.Module):
                     "expectile": self.expectile,
                     "temperature": self.temperature,
                     "encoder_hidden_dim": self.encoder_hidden_dim,
+                    "use_residual_latest_state": self.use_residual_latest_state,
+                    "shared_encoder": self.shared_encoder,
                 },
             },
             os.path.join(save_path, "gru_iql_model.pt"),
