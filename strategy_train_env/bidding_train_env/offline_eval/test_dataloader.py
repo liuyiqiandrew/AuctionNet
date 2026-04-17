@@ -1,7 +1,5 @@
-import os
 import numpy as np
 import pandas as pd
-import pickle
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -12,33 +10,25 @@ class TestDataLoader:
     Offline evaluation data loader.
     """
 
-    def __init__(self, file_path="./data/log.csv"):
+    def __init__(self, file_path="./data/log.parquet"):
         """
         Initialize the data loader.
         Args:
-            file_path (str): The path to the training data file.
+            file_path (str): The path to the training data file (parquet format).
 
         """
         self.file_path = file_path
-        self.raw_data_path = os.path.join(os.path.dirname(file_path), "raw_data.pickle")
         self.raw_data = self._get_raw_data()
         self.keys, self.test_dict = self._get_test_data_dict()
 
     def _get_raw_data(self):
         """
-        Read raw data from a pickle file.
+        Read raw data from a parquet file.
 
         Returns:
             pd.DataFrame: The raw data as a DataFrame.
         """
-        if os.path.exists(self.raw_data_path):
-            with open(self.raw_data_path, 'rb') as file:
-                return pickle.load(file)
-        else:
-            tem = pd.read_csv(self.file_path)
-            with open(self.raw_data_path, 'wb') as file:
-                pickle.dump(tem, file)
-            return tem
+        return pd.read_parquet(self.file_path)
 
     def _get_test_data_dict(self):
         """

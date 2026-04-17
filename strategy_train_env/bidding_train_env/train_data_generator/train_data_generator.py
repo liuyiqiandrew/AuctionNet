@@ -17,26 +17,31 @@ class TrainDataGenerator:
         self.file_folder_path = file_folder_path
         self.training_data_path = self.file_folder_path + "/" + "training_data_rlData_folder"
 
-    def batch_generate_train_data(self):
+    def batch_generate_train_data(self, first_period=7, last_period=26):
         os.makedirs(self.training_data_path, exist_ok=True)
-        csv_files = glob.glob(os.path.join(self.file_folder_path, '*.csv'))
-        print(csv_files)
+        parquet_files = sorted(glob.glob(os.path.join(self.file_folder_path, 'period-*.parquet')))
+        # Filter to only include the specified period range
+        parquet_files = [
+            f for f in parquet_files
+            if first_period <= int(os.path.basename(f).split('-')[1].split('.')[0]) <= last_period
+        ]
+        print(parquet_files)
         training_data_list = []
-        for csv_path in csv_files:
-            print("开始处理文件：", csv_path)
-            df = pd.read_csv(csv_path)
+        for parquet_path in parquet_files:
+            print("Processing: ", parquet_path)
+            df = pd.read_parquet(parquet_path)
             df_processed = self._generate_train_data(df)
-            csv_filename = os.path.basename(csv_path)
-            trainData_filename = csv_filename.replace('.csv', '-rlData.csv')
+            parquet_filename = os.path.basename(parquet_path)
+            trainData_filename = parquet_filename.replace('.parquet', '-rlData.parquet')
             trainData_path = os.path.join(self.training_data_path, trainData_filename)
-            df_processed.to_csv(trainData_path, index=False)
+            df_processed.to_parquet(trainData_path)
             training_data_list.append(df_processed)
             del df, df_processed
-            print("处理文件成功：", csv_path)
+            print("Finished: ", parquet_path)
         combined_dataframe = pd.concat(training_data_list, axis=0, ignore_index=True)
-        combined_dataframe_path = os.path.join(self.training_data_path, "training_data_all-rlData.csv")
-        combined_dataframe.to_csv(combined_dataframe_path, index=False)
-        print("整合多天训练数据成功；保存至:", combined_dataframe_path)
+        combined_dataframe_path = os.path.join(self.training_data_path, "training_data_all-rlData.parquet")
+        combined_dataframe.to_parquet(combined_dataframe_path)
+        print("Successfully generated offline training data; saved to: ", combined_dataframe_path)
 
     def _generate_train_data(self, df):
         """

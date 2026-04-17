@@ -5,7 +5,6 @@ from bidding_train_env.baseline.iql.replay_buffer import ReplayBuffer
 from bidding_train_env.baseline.iql.iql import IQL
 import sys
 import pandas as pd
-import ast
 
 np.set_printoptions(suppress=True, precision=4)
 logging.basicConfig(level=logging.INFO,
@@ -19,22 +18,8 @@ def train_iql_model():
     """
     Train the IQL model.
     """
-    train_data_path = "./data/traffic/training_data_rlData_folder/training_data_all-rlData.csv"
-    training_data = pd.read_csv(train_data_path)
-
-    def safe_literal_eval(val):
-        if pd.isna(val):
-            return val
-        try:
-            return ast.literal_eval(val)
-        except (ValueError, SyntaxError):
-            try:
-                return eval(val, {"__builtins__": {}}, {"np": np})
-            except Exception:
-                return val
-
-    training_data["state"] = training_data["state"].apply(safe_literal_eval)
-    training_data["next_state"] = training_data["next_state"].apply(safe_literal_eval)
+    train_data_path = "./data/traffic/training_data_rlData_folder/training_data_all-rlData.parquet"
+    training_data = pd.read_parquet(train_data_path)
     is_normalize = True
 
     if is_normalize:

@@ -27,7 +27,7 @@ def run_test():
     offline evaluation
     """
 
-    data_loader = TestDataLoader(file_path='./data/traffic/period-7.csv')
+    data_loader = TestDataLoader(file_path='./data/traffic/period-27.parquet')
     env = OfflineEnv()
     agent = PlayerBiddingStrategy()
     print(agent.name)

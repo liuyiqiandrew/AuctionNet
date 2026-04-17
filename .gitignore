@@ -9,3 +9,8 @@
 /strategy_train_env/slurm_out/
 /figures/
 *.sbatch*
+*/*.sh
+CLAUDE.md
+pre_generated_dataset/*.zip
+.claude/
+plan/

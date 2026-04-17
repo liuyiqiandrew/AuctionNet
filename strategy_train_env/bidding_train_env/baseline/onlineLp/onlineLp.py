@@ -14,16 +14,16 @@ class OnlineLp:
     def train(self, save_path):
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-        csv_files = glob.glob(os.path.join(self.dataPath, '*.csv'))
-        print(csv_files)
-        csv_files = sorted(csv_files)
+        parquet_files = glob.glob(os.path.join(self.dataPath, 'period-*.parquet'))
+        print(parquet_files)
+        parquet_files = sorted(parquet_files)
         # select episode-0
-        for i, csv_file_path in enumerate(csv_files[0:1]):
-            print("开始分析" + csv_file_path)
-            df = pd.read_csv(csv_file_path)
+        for i, parquet_file_path in enumerate(parquet_files[0:1]):
+            print("开始分析" + parquet_file_path)
+            df = pd.read_parquet(parquet_file_path)
             episodeRes = self.onlinelp_for_specific_episode(df)
             episodeRes.to_csv(f'{save_path}/period.csv', index=False)
-            print("完成分析" + csv_file_path)
+            print("完成分析" + parquet_file_path)
 
     def onlinelp_for_specific_episode(self, df):
         df_filter = df[(df["pValue"] > 0) & (df["leastWinningCost"] > 0.0001)]

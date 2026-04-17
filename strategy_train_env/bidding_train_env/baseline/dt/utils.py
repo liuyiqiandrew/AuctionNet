@@ -1,9 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
-import ast
 import numpy as np
-import pickle
 import random
 
 
@@ -16,21 +14,7 @@ class EpisodeReplayBuffer(Dataset):
 
         self.state_dim = state_dim
         self.act_dim = act_dim
-        training_data = pd.read_csv(data_path)
-
-        def safe_literal_eval(val):
-            if pd.isna(val):
-                return val
-            try:
-                return ast.literal_eval(val)
-            except (ValueError, SyntaxError):
-                try:
-                    return eval(val, {"__builtins__": {}}, {"np": np})
-                except Exception:
-                    return val
-
-        training_data["state"] = training_data["state"].apply(safe_literal_eval)
-        training_data["next_state"] = training_data["next_state"].apply(safe_literal_eval)
+        training_data = pd.read_parquet(data_path)
         self.trajectories = training_data
 
         self.states, self.rewards, self.actions, self.returns, self.traj_lens, self.dones = [], [], [], [], [], []

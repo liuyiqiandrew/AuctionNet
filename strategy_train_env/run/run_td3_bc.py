@@ -6,8 +6,6 @@ from bidding_train_env.baseline.iql.replay_buffer import ReplayBuffer
 from bidding_train_env.baseline.td3_bc.td3_bc import TD3_BC
 import sys
 import pandas as pd
-import ast
-import pickle
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format="[%(asctime)s] [%(name)s] [%(filename)s(%(lineno)d)] [%(levelname)s] %(message)s")
@@ -20,23 +18,8 @@ def train_td3_bc_model():
     """
     Train the td3_bc model.
     """
-    train_data_path = "./data/traffic/training_data_rlData_folder/training_data_all-rlData.csv"
-    training_data = pd.read_csv(train_data_path)
-
-    def safe_literal_eval(val):
-        if pd.isna(val):
-            return val  # 如果是NaN，返回NaN
-        try:
-            return ast.literal_eval(val)
-        except (ValueError, SyntaxError):
-            try:
-                return eval(val, {"__builtins__": {}}, {"np": np})
-            except Exception:
-                return val  # 如果解析出错，返回原值
-
-    # 使用apply方法应用上述函数
-    training_data["state"] = training_data["state"].apply(safe_literal_eval)
-    training_data["next_state"] = training_data["next_state"].apply(safe_literal_eval)
+    train_data_path = "./data/traffic/training_data_rlData_folder/training_data_all-rlData.parquet"
+    training_data = pd.read_parquet(train_data_path)
     STATE_DIM = len(training_data['state'].iloc[0])
 
     is_normalize = True
