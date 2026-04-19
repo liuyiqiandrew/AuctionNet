@@ -8,7 +8,7 @@ Two modes (both supported simultaneously with --eval_mode both):
 Example:
     python bidding_train_env/online/main_eval_ppo.py \
         --load_path output/online/training/ongoing/001_ppo_seed_0 \
-        --eval_mode both --n_eval_episodes 100 --bc_range dense
+        --eval_mode both --n_eval_episodes 100 --bc_range default
 """
 
 import argparse
@@ -46,7 +46,7 @@ def parse_args():
     p.add_argument("--eval_period", type=int, default=27)
     p.add_argument("--obs_type", default="obs_16_keys")
     p.add_argument("--act_type", default="act_1_key")
-    p.add_argument("--bc_range", default="dense", choices=list(BC_RANGES))
+    p.add_argument("--bc_range", default="default", choices=list(BC_RANGES))
     p.add_argument("--dense_weight", type=float, default=1.0)
     p.add_argument("--sparse_weight", type=float, default=0.0)
     p.add_argument("--rl_data_dir", type=str, default=str(RL_DATA_DIR))

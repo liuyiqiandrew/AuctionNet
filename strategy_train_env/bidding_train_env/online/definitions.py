@@ -85,7 +85,7 @@ INFO_KEYWORDS = (
     "conversions", "cost", "cpa", "target_cpa", "budget",
     "avg_pvalues", "score_over_pvalue", "score_over_budget", "score_over_cpa",
     "cost_over_budget", "target_cpa_over_cpa", "score",
-    "sparse", "dense", "action", "bid",
+    "sparse", "dense", "action", "bid", "overspend",
 )
 
 

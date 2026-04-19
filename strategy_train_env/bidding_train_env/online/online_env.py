@@ -37,6 +37,7 @@ class BiddingEnv(gym.Env):
         budget_range: tuple | None = (400, 12000),
         target_cpa_range: tuple | None = (6, 12),
         deterministic_conversion: bool = False,
+        lambda_cpa: float = 0.0,
         seed: int = 0,
     ):
         if obs_keys is None or act_keys is None:
@@ -46,6 +47,7 @@ class BiddingEnv(gym.Env):
         self.pvalues_key_pos = self.act_keys.index("pvalue")
         self.rwd_weights = rwd_weights if rwd_weights is not None else DEFAULT_RWD_WEIGHTS
         self.deterministic_conversion = deterministic_conversion
+        self.lambda_cpa = float(lambda_cpa)
 
         self.observation_space = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=(len(obs_keys),), dtype=np.float32
@@ -207,10 +209,14 @@ class BiddingEnv(gym.Env):
         )
 
         reward = self._compute_reward({"dense": dense_reward, "sparse": sparse_reward})
+        overspend = max(0.0, step_cost - self.target_cpa * step_conv)
+        if self.lambda_cpa > 0.0:
+            reward -= self.lambda_cpa * overspend
 
         info = {
             "dense": dense_reward,
             "sparse": sparse_reward,
+            "overspend": overspend,
             "bid": float(np.mean(advertiser_bids)) if len(advertiser_bids) else 0.0,
             "action": float(np.sum(advertiser_bids) / (np.sum(pvalues) + self.EPS) / self.target_cpa),
         }

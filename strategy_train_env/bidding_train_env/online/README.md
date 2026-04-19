@@ -41,10 +41,10 @@ Writes to `AuctionNet/strategy_train_env/data/traffic/online_rl_data/period-{N}_
 ```bash
 python bidding_train_env/online/main_train_ppo.py \
     --num_envs 20 --num_steps 10000000 --batch_size 512 \
-    --seed 0 --bc_range dense \
+    --seed 0 --bc_range default \
     --obs_type obs_16_keys --act_type act_1_key \
     --learning_rate 2e-5 --save_every 10000 \
-    --out_prefix 001_ --out_suffix _ppo_dense_obs16
+    --out_prefix 001_ --out_suffix _ppo_default_obs16
 ```
 
 Key flags:
@@ -73,9 +73,9 @@ Training auto-resumes from the latest checkpoint in its own log dir if interrupt
 
 ```bash
 python bidding_train_env/online/main_eval_ppo.py \
-    --load_path ../output/online/training/ongoing/001_ppo_seed_0_ppo_dense_obs16 \
+    --load_path ../output/online/training/ongoing/001_ppo_seed_0_ppo_default_obs16 \
     --eval_mode both --n_eval_episodes 100 \
-    --obs_type obs_16_keys --bc_range dense
+    --obs_type obs_16_keys --bc_range default
 ```
 
 `--eval_mode`:
@@ -91,7 +91,7 @@ with per-episode rows plus aggregated `score`, `cost_over_budget`, `target_cpa_o
 ```bash
 python bidding_train_env/online/main_train_ppo.py \
     --num_envs 2 --num_steps 5000 --batch_size 64 --n_rollout_steps 64 \
-    --save_every 1000 --device cpu --bc_range dense \
+    --save_every 1000 --device cpu --bc_range default \
     --use_dummy_vec_env --out_prefix smoke_
 
 python bidding_train_env/online/main_eval_ppo.py \
