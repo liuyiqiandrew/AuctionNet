@@ -16,3 +16,4 @@ pre_generated_dataset/*.zip
 plan/
 .vscode
 .codex
+output/
