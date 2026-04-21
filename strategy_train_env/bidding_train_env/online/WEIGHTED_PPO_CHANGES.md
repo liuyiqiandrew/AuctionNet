@@ -115,7 +115,7 @@ python bidding_train_env/online/main_eval_ppo.py \
 ## Hyperparameter Selection
 
 Temperature `T` was swept in `{10, 20, 30, 50}` with `alpha = 0.9` using a
-200k-step local smoke run per setting:
+50k and (some on) 200k-step local smoke run per setting:
 
 - `T = 30` and `T = 50` tied for the highest evaluation score.
 - `T = 50` yields a near-uniform sampling distribution (very high ESS), so its
@@ -129,7 +129,7 @@ Selected `T = 30, alpha = 0.9` for the 10M-step run.
 
 ## Verification Performed
 
-- 200k-step local CPU smoke runs completed for `T in {10, 20, 30, 50}`.
+- 200k-step local CPU runs completed for `T in {30, 50}`.
   Evaluation scores at 200k were below the uniform-sampling PPO baseline at
   the same budget; this is expected — 200k is a smoke-test budget and PPO on
   this task only begins converging at several million steps.
