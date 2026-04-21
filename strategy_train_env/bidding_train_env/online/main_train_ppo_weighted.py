@@ -5,11 +5,10 @@ high-scoring advertisers (under the original logged policy) are sampled more oft
 
 Example:
     python bidding_train_env/online/main_train_ppo_weighted.py \
-        --num_envs 3 --first_period 7 --num_steps 50000 \
-        --batch_size 256 --device cpu --bc_range default \
-        --use_dummy_vec_env --seed 0 \
-        --temperature 10 --alpha 0.9 \
-        --out_prefix small_weighted_T10_
+        --num_envs 20 --num_steps 10_000_000 --batch_size 512 \
+        --seed 0 --bc_range default --out_prefix 001_weighted_T10_ \
+        --obs_type obs_16_keys --learning_rate 1e-4 --save_every 10000 \
+        --temperature 10 --alpha 0.9
 """
 
 import argparse
