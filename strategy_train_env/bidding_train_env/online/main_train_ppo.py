@@ -3,7 +3,7 @@
 Example (from AuctionNet/strategy_train_env/):
     python bidding_train_env/online/main_train_ppo.py \
         --num_envs 20 --num_steps 10_000_000 --batch_size 512 \
-        --seed 0 --bc_range dense --out_prefix 001_ \
+        --seed 0 --bc_range default --out_prefix 001_ \
         --obs_type obs_16_keys --learning_rate 1e-4 --save_every 10000
 """
 
@@ -59,9 +59,11 @@ def parse_args():
     # Obs / act / rewards
     p.add_argument("--obs_type", default="obs_16_keys")
     p.add_argument("--act_type", default="act_1_key")
-    p.add_argument("--bc_range", default="dense", choices=list(BC_RANGES))
+    p.add_argument("--bc_range", default="default", choices=list(BC_RANGES))
     p.add_argument("--dense_weight", type=float, default=1.0)
     p.add_argument("--sparse_weight", type=float, default=0.0)
+    p.add_argument("--lambda_cpa", type=float, default=0.0,
+                   help="Lagrangian per-step CPA-overspend penalty weight. 0.0 = baseline.")
     p.add_argument("--deterministic_conversion", action="store_true")
 
     # Optional temporal PPO features. Defaults preserve the original flat MLP PPO path.
@@ -121,6 +123,7 @@ def build_env_configs(args, obs_keys, act_keys):
                 target_cpa_range=bc["target_cpa_range"],
                 deterministic_conversion=args.deterministic_conversion,
                 temporal_seq_len=args.temporal_seq_len,
+                lambda_cpa=args.lambda_cpa,
                 seed=args.seed + i,
             )
         )
