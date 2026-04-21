@@ -7,6 +7,8 @@
 /data/
 /strategy_train_env/saved_model/
 /strategy_train_env/slurm_out/
+/strategy_train_env/slurm_jobs/
+/strategy_train_env/plot_ppo_sweep_curves.py
 /figures/
 *.sbatch*
 */*.sh
@@ -17,3 +19,4 @@ plan/
 .vscode
 .codex
 output/
+/writeup/
