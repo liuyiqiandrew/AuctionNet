@@ -38,6 +38,7 @@ from bidding_train_env.online.definitions import (
 from bidding_train_env.online.helpers import get_model_and_env_path
 from bidding_train_env.online.online_env import EnvironmentFactory
 from bidding_train_env.online.online_trainer import OnlineTrainer
+from bidding_train_env.online.temporal_policy import TemporalGRUFeaturesExtractor
 
 
 def parse_args():
@@ -65,6 +66,13 @@ def parse_args():
                    help="Lagrangian per-step CPA-overspend penalty weight. 0.0 = baseline.")
     p.add_argument("--deterministic_conversion", action="store_true")
 
+    # Optional temporal PPO features. Defaults preserve the original flat MLP PPO path.
+    p.add_argument("--temporal_seq_len", type=int, default=1,
+                   help="stack the last K observations and use a GRU feature extractor when K > 1")
+    p.add_argument("--temporal_hidden_dim", type=int, default=64)
+    p.add_argument("--no_temporal_residual_latest_state", action="store_true",
+                   help="disable concatenating the latest observation to the GRU feature")
+
     # PPO hyperparams
     p.add_argument("--net_arch", type=int, nargs="+", default=[256, 256, 256])
     p.add_argument("--learning_rate", type=float, default=2e-5)
@@ -88,7 +96,12 @@ def parse_args():
     p.add_argument("--use_dummy_vec_env", action="store_true",
                    help="use DummyVecEnv instead of SubprocVecEnv (slower but easier to debug)")
 
-    return p.parse_args()
+    args = p.parse_args()
+    if args.temporal_seq_len < 1:
+        p.error(f"--temporal_seq_len must be >= 1, got {args.temporal_seq_len}")
+    if args.temporal_hidden_dim < 1:
+        p.error(f"--temporal_hidden_dim must be >= 1, got {args.temporal_hidden_dim}")
+    return args
 
 
 def build_env_configs(args, obs_keys, act_keys):
@@ -109,6 +122,7 @@ def build_env_configs(args, obs_keys, act_keys):
                 budget_range=bc["budget_range"],
                 target_cpa_range=bc["target_cpa_range"],
                 deterministic_conversion=args.deterministic_conversion,
+                temporal_seq_len=args.temporal_seq_len,
                 lambda_cpa=args.lambda_cpa,
                 seed=args.seed + i,
             )
@@ -147,6 +161,23 @@ def main():
     with open(log_dir / "env_config.json", "w") as f:
         json.dump(serializable, f, indent=2, default=lambda _: "<ns>")
 
+    policy_kwargs = dict(
+        log_std_init=args.log_std_init,
+        activation_fn=nn.ReLU,
+        net_arch=dict(pi=list(args.net_arch), vf=list(args.net_arch)),
+    )
+    if args.temporal_seq_len > 1:
+        policy_kwargs.update(
+            features_extractor_class=TemporalGRUFeaturesExtractor,
+            share_features_extractor=False,
+            features_extractor_kwargs=dict(
+                obs_dim=len(obs_keys),
+                seq_len=args.temporal_seq_len,
+                hidden_dim=args.temporal_hidden_dim,
+                use_residual_latest_state=not args.no_temporal_residual_latest_state,
+            ),
+        )
+
     model_cfg = dict(
         policy="MlpPolicy",
         device=args.device,
@@ -161,11 +192,7 @@ def main():
         max_grad_norm=args.max_grad_norm,
         n_epochs=args.n_epochs,
         seed=args.seed,
-        policy_kwargs=dict(
-            log_std_init=args.log_std_init,
-            activation_fn=nn.ReLU,
-            net_arch=dict(pi=list(args.net_arch), vf=list(args.net_arch)),
-        ),
+        policy_kwargs=policy_kwargs,
     )
 
     envs = make_vec_env(cfgs, str(log_dir), use_dummy=args.use_dummy_vec_env)

@@ -51,10 +51,15 @@ def parse_args():
     p.add_argument("--sparse_weight", type=float, default=0.0)
     p.add_argument("--rl_data_dir", type=str, default=str(RL_DATA_DIR))
     p.add_argument("--seed", type=int, default=0)
-    return p.parse_args()
+    p.add_argument("--temporal_seq_len", type=int, default=1,
+                   help="must match training when evaluating temporal PPO checkpoints")
+    args = p.parse_args()
+    if args.temporal_seq_len < 1:
+        p.error(f"--temporal_seq_len must be >= 1, got {args.temporal_seq_len}")
+    return args
 
 
-def build_dummy_vec_env(period, obs_keys, act_keys, bc, rwd_weights, rl_data_dir, seed):
+def build_dummy_vec_env(period, obs_keys, act_keys, bc, rwd_weights, rl_data_dir, seed, temporal_seq_len):
     def _thunk():
         return EnvironmentFactory.create(
             env_name="BiddingEnv",
@@ -66,6 +71,7 @@ def build_dummy_vec_env(period, obs_keys, act_keys, bc, rwd_weights, rl_data_dir
             rwd_weights=rwd_weights,
             budget_range=bc["budget_range"],
             target_cpa_range=bc["target_cpa_range"],
+            temporal_seq_len=temporal_seq_len,
             seed=seed,
         )
     return DummyVecEnv([_thunk])
@@ -157,7 +163,7 @@ def main():
 
     rl_data_dir = Path(args.rl_data_dir)
     vec_env = build_dummy_vec_env(
-        args.eval_period, obs_keys, act_keys, bc, rwd, rl_data_dir, args.seed
+        args.eval_period, obs_keys, act_keys, bc, rwd, rl_data_dir, args.seed, args.temporal_seq_len
     )
     vec_env = VecNormalize.load(str(vnorm_pkl), vec_env)
     vec_env.training = False
