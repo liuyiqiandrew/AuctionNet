@@ -17,3 +17,6 @@ plan/
 .vscode
 .codex
 output/
+uv.lock
+AGENTS.md
+strategy_train_env/outputs/strategy_train_env/bidding_train_env/llm/models/
