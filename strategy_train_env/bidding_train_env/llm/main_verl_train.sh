@@ -2,16 +2,16 @@
 #SBATCH --job-name=llm_rl_p7_26
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=160G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=180G
 #SBATCH --gres=gpu:1
 #SBATCH --partition=ailab
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=slurm_out/llm_rl_p7_26-%j.out
 #SBATCH --error=slurm_out/llm_rl_p7_26-%j.err
 #SBATCH --account=chij
 
-# VeRL GRPO + LoRA finetune of Qwen3.5-9B on AuctionNet periods 7..26.
+# VeRL GRPO + LoRA finetune of Qwen3-8B on AuctionNet periods 7..26.
 # Val is period 27 (same data main_eval_llm.py evaluates on).
 
 set -eo pipefail
@@ -21,16 +21,17 @@ TRAIN_ENV=${REPO_ROOT}/strategy_train_env
 cd "${TRAIN_ENV}"
 mkdir -p slurm_out
 
-source "${REPO_ROOT}/.venv/bin/activate"
+module load anaconda3/2025.6
+conda activate verl
 
 # Compute nodes have no internet.
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
 # Keep CPU-side BLAS from oversubscribing.
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
+export OMP_NUM_THREADS=2
+export MKL_NUM_THREADS=2
+export OPENBLAS_NUM_THREADS=2
 
 export VLLM_LOGGING_LEVEL=INFO
 export PYTHONUNBUFFERED=1
@@ -60,10 +61,10 @@ fi
 
 # --- Fire GRPO + LoRA training ---
 CONFIG_DIR=$(realpath bidding_train_env/llm/verl/config)
-echo "[$(date)] launching AuctionNet VeRL GRPO with config ${CONFIG_DIR}/qwen35_9b_grpo_lora.yaml"
+echo "[$(date)] launching AuctionNet VeRL GRPO with config ${CONFIG_DIR}/qwen3_8b_grpo_lora.yaml"
 
 python -u -m bidding_train_env.llm.verl.launch_train \
     --config-path="${CONFIG_DIR}" \
-    --config-name=qwen35_9b_grpo_lora
+    --config-name=qwen3_8b_grpo_lora
 
 echo "[$(date)] verl training complete"

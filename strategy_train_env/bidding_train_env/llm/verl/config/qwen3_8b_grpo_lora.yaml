@@ -1,0 +1,117 @@
+# VeRL GRPO + LoRA config for the AuctionNet LLM bidding agent.
+# Target hardware: 1× NVIDIA H200 (141 GB).
+# LoRA is REQUIRED — full-parameter training does not fit on a single H200.
+#
+# Launch (from AuctionNet/strategy_train_env/):
+#   python -m bidding_train_env.llm.verl.launch_train \
+#       --config-path=$(realpath bidding_train_env/llm/verl/config) \
+#       --config-name=qwen3_8b_grpo_lora
+#
+# See plan at .claude/plans/i-am-implementing-a-jolly-puzzle.md for details.
+
+defaults:
+  - ppo_trainer
+  - _self_
+
+data:
+  train_files: [/scratch/gpfs/CHIJ/ruirong/rl_general/proj/AuctionNet/strategy_train_env/bidding_train_env/llm/verl/data/train.parquet]
+  val_files:   [/scratch/gpfs/CHIJ/ruirong/rl_general/proj/AuctionNet/strategy_train_env/bidding_train_env/llm/verl/data/val.parquet]
+  train_batch_size: 4            # episodes per update step before GRPO repeat
+  max_prompt_length: 1024
+  max_response_length: 28672     # 48 turns * ~500 tok/turn (thinking off) + headroom
+  # Our prompts are already short (< max_prompt_length), so this filter is a
+  # no-op. Left off to avoid a verl codepath that imports `qwen_vl_utils`.
+  filter_overlong_prompts: false
+  return_raw_chat: true
+  # Qwen3 default template turns on <think>...</think>. Must force it off here,
+  # or per-turn response blows to ~2900 tokens and episodes clip at ~5 turns
+  # before budget is exhausted, leaving episode_score = 0 forever.
+  # AgentLoopBase.apply_chat_template reads this field and forwards to the
+  # tokenizer (verl/agent_loop.py:314), so setting it here covers both the
+  # dataloader's initial prompt tokenization AND every incremental chat-
+  # template call inside BiddingAgentLoop.
+  dataloader_num_workers: 2
+  apply_chat_template_kwargs:
+    enable_thinking: false
+
+actor_rollout_ref:
+  model:
+    path: /scratch/gpfs/CHIJ/ruirong/rl_general/proj/AuctionNet/strategy_train_env/bidding_train_env/llm/models/Qwen3-8B
+    enable_gradient_checkpointing: true
+    # LoRA — hard requirement for 1× H200.
+    lora_rank: 32
+    lora_alpha: 32
+    target_modules: all-linear
+
+  actor:
+    strategy: fsdp
+    ppo_mini_batch_size: 4       # must divide data.train_batch_size
+    ppo_micro_batch_size_per_gpu: 1
+    optim:
+      lr: 1.0e-5
+    fsdp_config:
+      param_offload: true
+      optimizer_offload: true
+    use_kl_loss: true
+    kl_loss_coef: 1.0e-3
+    kl_loss_type: low_var_kl
+    entropy_coeff: 0.0
+
+  rollout:
+    name: vllm
+    mode: async
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.5  # leave headroom for FSDP all-gather peaks
+    n: 4                          # GRPO group size per prompt
+    temperature: 1.0
+    top_p: 0.95
+    max_model_len: 32768
+    max_num_batched_tokens: 40960
+    log_prob_micro_batch_size_per_gpu: 1
+    # Qwen3-8B embed_tokens is 151936 x 4096 fp32 = ~2.4 GB on the FSDP actor.
+    # Default 2048 MB bucket can't hold it; bump so the single largest tensor
+    # fits in one async weight-sync bucket. Field lives under
+    # rollout.checkpoint_engine in verl 0.8 (the assertion's hint is misleading).
+    checkpoint_engine:
+      update_weights_bucket_megabytes: 4096
+    # Register our custom AgentLoop (defined in bidding_agent_loop.py) as the
+    # default. `default_agent_loop_name` is what `AgentLoopWorker` hands every
+    # sample that does not set `agent_name` in its row.
+    agent:
+      default_agent_loop: bidding_agent
+
+  ref:
+    log_prob_micro_batch_size_per_gpu: 1
+    fsdp_config:
+      param_offload: true
+
+algorithm:
+  adv_estimator: grpo
+  gamma: 1.0
+  lam: 1.0
+  kl_penalty: kl
+  kl_ctrl:
+    type: fixed
+    kl_coef: 0.0                  # KL is folded into loss via use_kl_loss above
+
+# No `reward_model:` block — our AgentLoop returns `reward_score` directly via
+# `AgentLoopOutput.reward_score`, which verl 0.8's AgentLoopWorker writes into
+# `batch["rm_scores"]`. When `reward_model.enable` is absent/false, the trainer
+# does not instantiate a RewardManager — it just uses `rm_scores` as the
+# per-episode reward. See verl/trainer/ppo/ray_trainer.py.
+
+trainer:
+  project_name: auctionnet_llm_rl
+  experiment_name: qwen3_8b_grpo_lora
+  total_epochs: 1                 # ~60 update steps on ~960-row train
+  nnodes: 1
+  n_gpus_per_node: 1
+  save_freq: 20
+  test_freq: 20
+  val_before_train: true
+  default_local_dir: output/llm/training
+  logger: [console]               # flip to [console, wandb] if wandb is set up
+  # The old global_step_20 ckpt was produced by a broken run (thinking-on,
+  # grad_norm stayed 0.0). Don't auto-resume into its optimizer/dataloader
+  # state. Move or delete output/llm/training/global_step_20/ before launching.
+  resume_mode: disable

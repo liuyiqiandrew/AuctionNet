@@ -1,11 +1,11 @@
 """Launcher that registers local AuctionNet VeRL extensions before training.
 
-Ray quirk: `@register("auction_env")` in `auction_reward_manager` populates a
-process-local dict. Importing the module here only registers it in the driver
-process; the `TaskRunner` Ray actor starts in a separate Python interpreter
-with an empty registry and then fails in `load_reward_manager`. To fix, we
-pre-initialize Ray with `worker_process_setup_hook` pointing at a tiny setup
-function that re-imports the module inside every worker.
+Ray quirk: `@register("bidding_agent")` in `bidding_agent_loop` populates a
+process-local dict. Importing the module here only registers it in the
+driver process; the `TaskRunner` Ray actor and rollout workers start in
+separate Python interpreters with empty registries. To fix, we pre-initialize
+Ray with `worker_process_setup_hook` pointing at a tiny setup function that
+re-imports the module inside every worker.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import sys
 import ray
 
 # Driver-side registration (for any ad-hoc use before main()).
-import bidding_train_env.llm.verl.auction_reward_manager  # noqa: F401
+import bidding_train_env.llm.verl.bidding_agent_loop  # noqa: F401
 from verl.trainer.main_ppo import main
 
 
@@ -34,8 +34,8 @@ def _init_ray_with_setup_hook() -> None:
                 # `bidding_train_env.llm.verl.*` (the SLURM script exports this).
                 "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
             },
-            # Fires once per Ray worker process; registers "auction_env"
-            # reward manager in the worker's local registry.
+            # Fires once per Ray worker process; registers "bidding_agent"
+            # AgentLoop in the worker's local registry.
             "worker_process_setup_hook": "bidding_train_env.llm.verl._worker_setup.setup",
         },
     )

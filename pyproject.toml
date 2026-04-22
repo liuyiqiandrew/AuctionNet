@@ -17,8 +17,7 @@ dependencies = [
     "pyarrow>=14",
     "scipy>=1.11",
     "stable-baselines3>=2.4",
-    "torch==2.10.*",      # matches what you're installing with vllm
-    "verl>=0.4.1",
+    "torch==2.10.*",
     "vllm==0.19.1",       # pinned to the wheel that's known-good
 ]
 
