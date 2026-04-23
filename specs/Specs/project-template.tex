@@ -1,0 +1,51 @@
+\documentclass{article}
+\input{boilerplate}
+
+\begin{document}
+
+\newcommand{\alcomment}[1]{{\color{blue} {\bf AL:} (#1) }}
+\newcommand{\lectureTitle}{Project Proposal: Reinforcement Learning for Large-Scale Auto-Bidding}
+\newcommand{\lectureDate}{Due: March 20, 2026}
+
+\textsc{COS435 / ECE433: Introduction to RL} \hfill \lectureDate
+\vspace{1em}
+
+\maketitle
+
+% \vspace{-15pt}
+\paragraph{Authors:}
+Ruirong Feng (\texttt{rrfeng@princeton.edu}), 
+Ophelia Fulton (\texttt{of4642@princeton.edu}),
+Xinya (Claire) Gu (\texttt{xg3412@princeton.edu}),
+Bonnie Liu (\texttt{bl0919@princeton.edu}),
+% \alcomment{Claire and Bonnie should verify name + email},
+Yiqi (Andrew) Liu (\texttt{andrew.liu@princeton.edu})
+
+
+% \vspace{-5pt}
+\paragraph{Project type:}
+3. Try to win one of the RL competitions (AuctionNet)
+
+% \vspace{-5pt}
+\paragraph{Description}
+The NeurIPS 2024 competition \textit{Auto-Bidding in Large-Scale Auctions: Learning Decision-Making in Uncertain and Competitive Games} \citep{xu2024autobidding} poses a real-world sequential decision-making problem in a competitive multi-agent setting. In this competition, an auto-bidding agent acts on behalf of an advertiser to maximize conversions subject to budget and cost-per-acquisition constraints. At each decision step, the agent observes a stream of ad opportunities with associated features, submits bids, and competes against other agents in repeated Generalized Second-Price auctions with multiple ad slots. The competition environment and dataset are built on AuctionNet \citep{su2024auctionnet}, a benchmark derived from a real-world advertising platform and designed to emulate realistic ad-auction dynamics. AuctionNet provides both an auction simulator and baseline algorithms through a public repository\footnote{\url{https://github.com/alimama-tech/AuctionNet}}, making it a practical testbed for studying learning-based bidding policies under uncertainty and strategic competition.
+
+% AuctionNet is a benchmark for large-scale ad auction bidding, a real-world sequential decision-making problem in a competitive multi-agent setting \citep{su2024auctionnet}. In this setting, an auto-bidding agent acts on behalf of an advertiser to optimize campaign objectives such as impressions and conversions. To do so, the agent observes a stream of advertising opportunities, submits bids in repeated auctions, and competes against other agents in a dynamic auction environment. AuctionNet provides both an auction simulator and baseline algorithms through a public GitHub repository\footnote{\url{https://github.com/alimama-tech/AuctionNet}}, making it a practical testbed for studying learning-based bidding policies in competitive settings.
+
+The auto-bidding problem is challenging because rewards are sparse and delayed: most impressions do not convert, and successful outcomes may depend on a sequence of earlier bidding decisions. The environment is also competitive and effectively nonstationary, since performance depends on other agents’ behavior and on budget allocation over time. These features make simple static or myopic bidding rules insufficient. The agent must plan over a long horizon while adapting to a changing competitive landscape. Reinforcement learning (RL) has been a primary framework for auto-bidding, since the problem can be formulated as a constrained Markov decision process, that is, a sequential decision problem with explicit budget constraints \citep{cai2017realtime, wu2018budget, he2021unified}. However, whether RL is the state-of-the-art solution remains unclear as a growing body of work starts to explore alternatives such as online linear programming \citep{hao2020dynamic}, imitation learning \citep{chiappa2025oil}, and generative modeling \citep{guo2024generative}. 
+
+Our project will center on RL implementations for the auto-bidding competition. We will begin by reproducing a baseline RL agent within the provided framework to validate the environment, metrics, and training pipeline \citep{su2024auctionnet}. Because AuctionNet provides both logged trajectories from diverse agents and an interactive auction simulator, it supports both offline and online RL methods. Building on this baseline, we will investigate whether targeted RL design modifications can improve performance, including general techniques such as reward shaping \citep{ng1999reward_trans} and recurrent policies that incorporate recent history in partially observable settings \citep{hausknecht2015deep}, as well as domain-specific adaptations such as budget-aware state representation \citep{wu2018budget}. Our goal is to use these comparisons to identify a final RL agent that achieves strong performance relative to the provided baseline in AuctionNet.
+
+We anticipate several engineering and scientific challenges. First, reproducing the provided baseline may require substantial effort due to dependencies and evaluation details, so our first milestone is to obtain a working end-to-end baseline result that can serve as the reference for later experiments. Second, the full AuctionNet dataset is large, making local development inefficient. We will therefore use smaller-scale local experiments for debugging and cluster resources for larger runs. Third, because the project timeline is short relative to the required engineering effort, we will focus on a small number of targeted RL modifications rather than a broad sweep of methods. Finally, because the most competitive auto-bidding methods reported for the competition are not necessarily built on standard RL \citep[e.g.][]{chiappa2025oil}, we will evaluate success primarily through improvement over the provided RL baselines, together with careful ablation studies.
+
+We plan to meet twice per week to coordinate progress in implementation, experiments, and writing. During the initial phase, tasks will be divided between literature review and baseline reproduction. Once a working baseline is established, we will identify a small number of promising RL modifications and develop them in parallel. Throughout the project, all team members will contribute through implementation, experiment analysis, and writing.
+
+
+{\footnotesize
+% \paragraph{Acknowledgements.} We thank XXX.
+\newpage
+\bibliographystyle{apalike}
+\bibliography{references}
+}
+
+\end{document}
