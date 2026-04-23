@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" prefix="og: https://ogp.me/ns#">
+  <head>
+    <meta charset="utf-8" />
+<meta name="description" content="The job scheduler used on the HPC clusters" />
+<link rel="canonical" href="https://researchcomputing.princeton.edu/support/knowledge-base/slurm" />
+<meta property="og:site_name" content="Princeton Research Computing" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://researchcomputing.princeton.edu/support/knowledge-base/slurm" />
+<meta property="og:title" content="Slurm" />
+<meta property="og:description" content="The job scheduler used on the HPC clusters" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="Generator" content="Drupal 10 (https://www.drupal.org)" />
+<meta name="MobileOptimized" content="width" />
+<meta name="HandheldFriendly" content="true" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="/sites/g/files/toruqf7796/themes/site/favicon.ico" type="image/vnd.microsoft.icon" />
+
+    <title>Slurm | Princeton Research Computing</title>
+    <link rel="stylesheet" media="all" href="/modules/contrib/linkpurpose/library/css/linkpurpose.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/core/components/progress.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/core/components/ajax-progress.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/align.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/fieldgroup.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/container-inline.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/clearfix.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/details.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/hidden.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/item-list.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/js.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/nowrap.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/position-container.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/reset-appearance.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/resize.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/system-status-counter.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/system-status-report-counters.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/system-status-report-general-info.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/system/components/tablesort.module.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/filter/filter.caption.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/modules/contrib/entity_embed/css/entity_embed.filter.caption.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/modules/custom/ps_alerts/css/alerts.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/modules/custom/select2_simple/css/aria-autocomplete-overrides.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/modules/custom/select2_simple/css/aria-autocomplete-frontend.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/core/modules/layout_discovery/layouts/onecol/onecol.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/modules/custom/ps_core/css/global.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/modules/custom/ps_core/layouts/threecol_33_34_33/threecol_33_34_33.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/core/assets/vendor/normalize-css/normalize.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/stable/css/core/normalize-fixes.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/action-links.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/breadcrumb.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/button.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/collapse-processed.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/container-inline.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/details.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/exposed-filters.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/field.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/form.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/icons.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/inline-form.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/item-list.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/link.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/links.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/menu.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/more-link.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/pager.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/tabledrag.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/tableselect.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/tablesort.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/tabs.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/textarea.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/ui-dialog.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/messages.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/node.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/themes/contrib/classy/css/components/progress.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/themes/ps_base/bootstrap/css/bootstrap.min.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/themes/ps_base/css/styles.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/profiles/ps/themes/ps_tiger/css/styles.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/sites/g/files/toruqf7796/themes/site/css/styles.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="//use.typekit.net/ozr7oya.css" />
+<link rel="stylesheet" media="all" href="//use.typekit.net/xxx7asp.css" />
+<link rel="stylesheet" media="all" href="//use.typekit.net/bok5fgz.css" />
+<link rel="stylesheet" media="all" href="//fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,100..900;1,100..900&amp;family=Lora:ital,wght@0,400..700;1,400..700&amp;display=swap" />
+<link rel="stylesheet" media="all" href="/sites/g/files/toruqf7796/files/asset_injector/css/code_font_ubuntu_mono-4bff57a586751b4277ca9190d2c333c2.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/sites/g/files/toruqf7796/files/asset_injector/css/kb-51eed12bb9c24ee6be5c82bf66cd7e20.css?tbgfm5" />
+<link rel="stylesheet" media="all" href="/sites/g/files/toruqf7796/files/asset_injector/css/styles-b2bc7d1db7e23bfd16902dbfb9bdf5e5.css?tbgfm5" />
+
+    <script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"baseUrl":"\/","pathPrefix":"","currentPath":"node\/7592","currentPathIsAdmin":false,"isFront":false,"currentLanguage":"en"},"pluralDelimiter":"\u0003","suppressDeprecationErrors":true,"gtag":{"tagId":"UA-120129130-1","consentMode":false,"otherIds":["G-SYM2M5TBXR","G-1GCMYCJGED"],"events":[],"additionalConfigInfo":{"cookie_domain":"none"}},"ajaxPageState":{"libraries":"eJyFU4uu2zAI_aG0lm73P4jYNHFrm8jgqtnXDydb2vuQJiUOHB7mAEERUojlRl65Oi9y9hwIrlwU2tiKNshceMDvjvfxJ1R0TSSDT2Zb3YhC_-RMIji9bMUuGjxXcqG2BdP5yjXvQDEJU_xNQ7hWNyUeMZ165limgYpGXYHySMF5XDRyGSbmKREoTm6y46t-xhs-h4QrN4UQxfOD6uq4kOc0WNr70urCQi6WqMMigN5bva6SaI1eKUD3Mq4hejSym0-iquL2Twc6XePs76Bsz_LCmO-nzKElOrBMpZ2ozFg8ben8nUK01OAxJSvUfQU2p94fKzrhIsaPngpCWP1scs0ClR7UC3r3bbnIof-9MdiMfXvBm4aj9WxGmeEan2859gkc6q3lZW9H53DAGzLSjI_Ir9jEU2_6ZmxCtWCmw1ixBM4Qsy3GAX7iM8dpTvbqWzk6V-qDg8sFLr_s7BaNE1WHgUfq2ysvbFNJP74hb3H7vuyBQsn2-QMk5iWRwxoRsCl77rrSfx3gWi0RlQB9zWoMtvSyilLefog_eK5bLQ","theme":"dfr","theme_token":null},"ajaxTrustedUrl":[],"linkpurpose":{"domain":"https:\/\/researchcomputing.princeton.edu","ignore":"#toolbar-administration a, .princeton-branding a, .copyright a, .block-ps-social a","noIconOnImages":true,"purposeDocument":true,"purposeDocumentMessage":"Link downloads document","purposeDownload":true,"purposeDownloadMessage":"Link downloads file","purposeApp":true,"purposeAppMessage":"Link opens app","purposeExternal":true,"purposeExternalMessage":"Link is external","purposeMail":true,"purposeMailMessage":"Link sends email","purposeTel":true,"purposeTelMessage":"Link opens phone app","purposeNewWindow":true,"purposeNewWindowMessage":"Link opens in new window","css_url":"\/modules\/contrib\/linkpurpose"},"all_documents_new_window":false,"select2_simple":{"selector":".node-form select:not(.disable-select2,[name$=\u0027[actions][bundle]\u0027],.ui-timepicker-select,[name*=\u0027field_ps_timeline_feature_items\u0027]),.select2-form select[multiple],form.layout-builder-configure-block select[multiple]"},"user":{"uid":0,"permissionsHash":"f1359356906c9c938cbdc00e4fd8766edcfb4b2aafefa9eb93891d0bee3ec111"}}</script>
+<script src="/core/misc/drupalSettingsLoader.js?v=10.5.6"></script>
+<script src="/modules/contrib/google_tag/js/gtag.js?tbgfm5"></script>
+
+  </head>
+  <body class="not-front section-support page-node-7592 content-type-ps-basic-page flavor1 fontset3 btn-v1 menu1 sidebar-menu-right full-width-search-box layout-block-padding-medium layout-above-section-spacing-none layout-below-section-spacing-medium">
+    
+      <div class="dialog-off-canvas-main-canvas" data-off-canvas-main-canvas>
+    <div class="page page-container"> 
+    <header role="banner" class="header region region-header" id="header">
+    <h1 class="sr-only sr-site-name">Princeton Research Computing</h1>
+        <div class="skip-links">
+      <a href="#main-content" class="sr-only sr-only-focusable"><span class="hide-on-focus">Off screen link: </span>Skip to content</a>
+      <a href="#edit-search-keys" class="sr-only sr-only-focusable"><span class="hide-on-focus">Off screen link: </span>Skip to search</a>
+    </div>
+    <div class="princeton-branding">
+  <div class="container">
+    <a href="http://www.princeton.edu" class="pu-logo" title="Princeton University">
+      <img src="/sites/g/files/toruqf7796/themes/site/images/pu-logo-white.svg" alt="Princeton University"/>
+    </a> | <a href="https://research.princeton.edu/" class="dfr-name"> Office of the Dean for Research </a>
+  </div>
+</div>
+
+<div class="header-container container">
+  <div class="site-branding">
+    <div class="container">
+      <div class="row">
+                  <a href="/" title="Home" rel="home" class="site-logo">
+            <img class="sizing-default" src="/sites/g/files/toruqf7796/files/Research%20Computing%20Tiger.svg" alt="Home" />
+
+          </a>
+                      </div>
+    </div>
+  </div>
+
+  
+      <nav aria-label="site" class="main-menu">
+      <h2 class="sr-only">Main Menu</h2>
+      <div class="container navbar-expand-lg">
+        <button class="toggle-mobile-menu unbutton" type="button" data-toggle="collapse" data-target="#menu-container"
+                aria-controls="menu-container" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="toggle-mobile-menu-icon">
+            <span class="toggle-mobile-menu-title">Menu</span>
+            <i class="fa fa-bars" aria-hidden="true"></i>
+          </span>
+        </button>
+
+        <div id="menu-container" class="collapse navbar-collapse">
+          
+              <ul class="nav navbar-nav main" role="list">
+        
+                          
+                              <li class="nav-item expanded">
+                          <a href="/getting-started" data-drupal-link-system-path="node/7594">Get Started</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/get-account" data-drupal-link-system-path="node/7646">Get an Account</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/get-started/guide-princeton-clusters" data-drupal-link-system-path="node/8021">Guide to Princeton Clusters</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/guide-princeton-clusters/1-intro-clusters" data-drupal-link-system-path="node/9041">1. Intro to Clusters</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/guide-princeton-clusters/2-software" data-drupal-link-system-path="node/8966">2. Software</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/guide-princeton-clusters/3-first-slurm-job" data-drupal-link-system-path="node/8971">3. First Slurm Job</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/guide-princeton-clusters/4-effective-usage" data-drupal-link-system-path="node/9006">4. Effective Usage</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/guide-princeton-clusters/5-getting-help" data-drupal-link-system-path="node/9201">5. Getting Help</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/mistakes-avoid" title="Most common mistakes from users on Princeton&#039;s clusters." data-drupal-link-system-path="node/9216">Mistakes to Avoid</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/get-started/utilization-policies" data-drupal-link-system-path="node/10976">Utilization Policies</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/subscribe" data-drupal-link-system-path="node/7735">Subscribe to Newsletter</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item expanded">
+                          <a href="/systems/systems-overview" data-drupal-link-system-path="node/7662">Systems</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/systems/nobel" data-drupal-link-system-path="node/7667">Nobel</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/systems/adroit" data-drupal-link-system-path="node/7668">Adroit</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/systems/della" data-drupal-link-system-path="node/7663">Della</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/systems/tiger" data-drupal-link-system-path="node/7665">Tiger</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/systems/stellar" title="Stellar HPC cluster" data-drupal-link-system-path="node/8416">Stellar</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/systems/cloud-computing" data-drupal-link-system-path="node/8016">Cloud Computing</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/systems/cloud-computing/gpus-classes" data-drupal-link-system-path="node/11301">GPUs for Classes</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/systems/secure-research-infrastructure" data-drupal-link-system-path="node/8081">Secure Research Infrastructure</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/systems/secure-research-infrastructure/our-team" class="restricted" data-drupal-link-system-path="node/13311">Our Team</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/systems/secure-research-infrastructure/what-cui" data-drupal-link-system-path="node/8091">What is CUI?</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/systems/secure-research-infrastructure/faq" data-drupal-link-system-path="node/8531">FAQ</a>
+              </li>
+        </ul>
+  
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item">
+                          <a href="/support/knowledge-base/data-storage" data-drupal-link-system-path="node/7529">Data</a>
+              </li>
+    
+                          
+                              <li class="nav-item expanded">
+                          <a href="/services" data-drupal-link-system-path="node/7654">Services</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item expanded">
+                          <a href="/services/research-software-engineering" data-drupal-link-system-path="node/7531">Research Software Engineering</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/services/research-software-engineering/rse-partnership-guide" data-drupal-link-system-path="node/8751">RSE Partnership Guide</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/research-software-engineering/group-members" data-drupal-link-system-path="node/7530">Group Members</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/research-software-engineering/rse-projects" data-drupal-link-system-path="node/7549">RSE projects</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="https://blog.rse.princeton.edu/">RSE Blog</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/research-software-engineering/princeton-regional-group" title="A community of practice for research software and computing." data-drupal-link-system-path="node/10771">Princeton Regional Group</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/research-software-engineering/2026-research-software-engineering-summer-fellows-program" data-drupal-link-system-path="node/13511">2026 Research Software Engineering Summer Fellows Program</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/how-to-rse" data-drupal-link-system-path="node/11911">How to work with an RSE</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/research-software-engineering/rover-program" data-drupal-link-system-path="node/12411">Rover Program</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/supported-software" data-drupal-link-system-path="node/7540">Supported Software</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/services/data-transfer-networking" data-drupal-link-system-path="node/7550">Data Transfer &amp; Networking</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/services/data-transfer-networking/data-transfer-globus" data-drupal-link-system-path="node/7541">Data Transfer with Globus</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/services/visualization" data-drupal-link-system-path="node/7671">Visualization</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/services/visualization/software" data-drupal-link-system-path="node/7518">Software</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/visualization/lab-spaces" data-drupal-link-system-path="node/8171">Lab Spaces</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/visualization/visualization-gallery" data-drupal-link-system-path="node/8101">Visualization Gallery</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/services/gis-geospatial-analysis" data-drupal-link-system-path="node/7522">GIS &amp; Geospatial Analysis</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/services/gis-geospatial-analysis/software" data-drupal-link-system-path="node/8166">Software</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/services/github" data-drupal-link-system-path="node/7543">GitHub Repositories</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="https://forms.rc.princeton.edu/github/" target="_blank">GitHub Registration</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/services/repo-review-consultations" data-drupal-link-system-path="node/8986">Repo Review Consultations</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item expanded active">
+                          <a href="/support" data-drupal-link-system-path="node/7659">Support</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/support/faq" data-drupal-link-system-path="node/7582">FAQ</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/submit-ticket" data-drupal-link-system-path="node/8011">Submit a Ticket</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded active">
+                          <a href="/knowledge-base" class="knowledge-base">Knowledge Base</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ai-sandbox" data-drupal-link-system-path="node/12401">A.I. Sandbox</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/apptainer" data-drupal-link-system-path="node/10796">Apptainer</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/checkquota" data-drupal-link-system-path="node/7574">Checkquota</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/connect-ssh" title="Connect to the Clusters via SSH" data-drupal-link-system-path="node/9021">Connect by SSH</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/connect-web" title="Connect to the Clusters via a Web Browser" data-drupal-link-system-path="node/9016">Connect by Web</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/custom-modules" data-drupal-link-system-path="node/8181">Custom Modules</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ddt-debugger" data-drupal-link-system-path="node/7581">DDT (debugger)</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/data-storage" data-drupal-link-system-path="node/7529">Data Storage</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/data-transfer" title="Learn how to get your files and off the cluster" data-drupal-link-system-path="node/9031">Data Transfer</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/datasets" data-drupal-link-system-path="node/9001">Datasets</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ffmpeg" data-drupal-link-system-path="node/12691">FFMPEG</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gpu-computing" title="Concepts, hardware and tools for using GPUs" data-drupal-link-system-path="node/8686">GPU Computing</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gromacs" data-drupal-link-system-path="node/8206">GROMACS</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gui-applications" data-drupal-link-system-path="node/7743">GUI Applications</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gaussian" data-drupal-link-system-path="node/7765">Gaussian</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/globus" title="High-speed data transfer" data-drupal-link-system-path="node/11926">Globus</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/hugging-face" title="Hugging Face" data-drupal-link-system-path="node/10296">Hugging Face</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jax" data-drupal-link-system-path="node/8526">JAX</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jenkins" data-drupal-link-system-path="node/8216">Jenkins</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/job-priority" data-drupal-link-system-path="node/7741">Job Priority</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jobstats" data-drupal-link-system-path="node/8881">Jobstats</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/julia" data-drupal-link-system-path="node/7742">Julia</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jupyter" data-drupal-link-system-path="node/7747">Jupyter</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/lammps" data-drupal-link-system-path="node/7752">LAMMPS</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/map-profiler" data-drupal-link-system-path="node/7567">MAP (profiler)</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/matlab" data-drupal-link-system-path="node/7572">MATLAB</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/mathematica" data-drupal-link-system-path="node/7766">Mathematica</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/memory" data-drupal-link-system-path="node/7737">Memory</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/modules" data-drupal-link-system-path="node/7563">Modules</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/mpi4py" data-drupal-link-system-path="node/7746">Mpi4py</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/namd" data-drupal-link-system-path="node/7753">NAMD</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ondemand-portal" title="How to use the clusters via a web browser." data-drupal-link-system-path="node/9596">OnDemand Portal</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/petsc" data-drupal-link-system-path="node/7739">PETSc</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/parallel-code" data-drupal-link-system-path="node/9036">Parallel Code</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ports-and-proxydefault" data-drupal-link-system-path="node/10816">Ports and proxy/default</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/pytorch" data-drupal-link-system-path="node/7748">PyTorch</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/python" data-drupal-link-system-path="node/7749">Python</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/quantum-espresso" data-drupal-link-system-path="node/8636">Quantum Espresso</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/rrstudio" data-drupal-link-system-path="node/7745">R/RStudio</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/recover-files" data-drupal-link-system-path="node/7738">Recover Files</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/scaling-analysis" data-drupal-link-system-path="node/7996">Scaling Analysis</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/sharing-data" data-drupal-link-system-path="node/7794">Sharing Data</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/singularity" data-drupal-link-system-path="node/7754">Singularity</a>
+              </li>
+    
+            
+                              <li class="submenu-item active">
+                          <a href="/support/knowledge-base/slurm" data-drupal-link-system-path="node/7592" class="is-active" aria-current="page">Slurm</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/snakemake" data-drupal-link-system-path="node/12406">Snakemake</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/spark" data-drupal-link-system-path="node/7565">Spark</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/stata" data-drupal-link-system-path="node/7736">Stata</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/suppressing-duo" data-drupal-link-system-path="node/7709">Suppressing Duo</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/tensorflow" data-drupal-link-system-path="node/7750">TensorFlow</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/tigress-cifs" data-drupal-link-system-path="node/8176">Tigress-cifs</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/tigress-web" data-drupal-link-system-path="node/7792">Tigress-web</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/turbovnc" title="TurboVNC" data-drupal-link-system-path="node/8086">TurboVNC</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/vasp" data-drupal-link-system-path="node/7791">VASP</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/vs-code" data-drupal-link-system-path="node/9396">VS Code</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/help-sessions" data-drupal-link-system-path="node/7597">Help Session</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item expanded">
+                          <a href="/learn" data-drupal-link-system-path="node/7603">Learn</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item expanded">
+                          <a href="/learn/workshops-live-training" data-drupal-link-system-path="node/7673">Workshops &amp; Live Training</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/requirements-person-and-virtual-workshops" data-drupal-link-system-path="node/8336">Requirements for In-Person and Virtual Workshops</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/learn/workshops-live-training/archives-past-workshops" data-drupal-link-system-path="node/8346">Archives of past workshops</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/fall-2022-workshops" data-drupal-link-system-path="node/9726">Fall 2022 Workshops</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/fall-2023-workshop-materials" data-drupal-link-system-path="node/10706">Fall 2023 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/spring-2022" data-drupal-link-system-path="node/9341">Spring 2022</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/spring-2023-workshop-materials" data-drupal-link-system-path="node/10226">Spring 2023 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/spring-2024-workshop-materials" data-drupal-link-system-path="node/11221">Spring 2024 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/summer-2024-workshop-materials" data-drupal-link-system-path="node/11566">Summer 2024 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/wintersession-2022-workshop-materials" data-drupal-link-system-path="node/9211">Wintersession 2022 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/wintersession-2023" data-drupal-link-system-path="node/9951">Wintersession 2023</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/wintersession-2024-workshop-materials" data-drupal-link-system-path="node/10996">Wintersession 2024 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/fall-break-parallel-programming-workshop-2021" data-drupal-link-system-path="node/8996">Fall Break Parallel Programming Workshop 2021</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/fall-2021-workshop-materials" data-drupal-link-system-path="node/8886">Fall 2021 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/spring-2021-workshop-materials" data-drupal-link-system-path="node/8551">Spring 2021 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/fall-2020-workshop-materials" data-drupal-link-system-path="node/7786">Fall 2020 Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/workshop-materials" data-drupal-link-system-path="node/7740">Workshop Materials</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/workshops-live-training/archives-past-workshops/fall-2019-workshop-materials" data-drupal-link-system-path="node/7730">Fall 2019 Workshop Materials</a>
+              </li>
+        </ul>
+  
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/learn/tutorials" data-drupal-link-system-path="node/7595">Tutorials</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/learn/tutorials/external-resources-learning" data-drupal-link-system-path="node/7768">External resources for learning</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="https://oit.princeton.edu/generative-ai">Generative AI</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/learn/user-groups" data-drupal-link-system-path="node/7588">User Groups</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/learn/user-groups/python" data-drupal-link-system-path="node/8351">Python</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/user-groups/julia" data-drupal-link-system-path="node/11786">Julia</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/user-groups/gpu" data-drupal-link-system-path="node/11326">GPU</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/user-groups/llm-collective" data-drupal-link-system-path="node/12441">LLM Collective</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/user-groups/deep-learning" data-drupal-link-system-path="node/7720">Deep Learning</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/user-groups/matlab" data-drupal-link-system-path="node/7586">MATLAB</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/academic-seminars" data-drupal-link-system-path="node/7589">Academic Seminars</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/learn/glossary" data-drupal-link-system-path="node/8051">Glossary</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item expanded">
+                          <a href="/research" data-drupal-link-system-path="node/7653">Research</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/research/selected-rse-projects" data-drupal-link-system-path="node/8316">RSE Projects</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item expanded">
+                          <a href="/about" data-drupal-link-system-path="node/7652">About</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item expanded">
+                          <a href="/about/people-directory" data-drupal-link-system-path="node/7977">People</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/primary-contact-and-technical-staff" data-drupal-link-system-path="node/8191">Primary Contact and Technical Staff</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/about/advisory-committees" data-drupal-link-system-path="node/13016">Advisory Committees</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/about/advisory-committees#CfR_Steering" data-drupal-link-system-path="node/13016">CfR Steering Committee</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/advisory-committees#CfR_HSR" data-drupal-link-system-path="node/13016">CfR Hardware and Systems Resources</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/advisory-committees#CfR_SR" data-drupal-link-system-path="node/13016">CfR Staffing Resources</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/advisory-committees#CfR_EER" data-drupal-link-system-path="node/13016">CfR Educational and Engagement Resources</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/advisory-committees#CfR_UI" data-drupal-link-system-path="node/13016">CfR University Interfaces</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/scientific-computing-administrators-meeting" data-drupal-link-system-path="node/7705">Scientific Computing Administrators Meeting</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/about/research-groups" data-drupal-link-system-path="node/7700">Research Groups</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/about/research-groups/applied-and-computational-mathematics" data-drupal-link-system-path="node/7676">Applied and Computational Mathematics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/astrophysical-sciences" data-drupal-link-system-path="node/7677">Astrophysical Sciences</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/atmospheric-and-oceanic-science" data-drupal-link-system-path="node/7678">Atmospheric and Oceanic Science</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/center-statistics-machine-learning" data-drupal-link-system-path="node/7733">Center for Statistics &amp; Machine Learning</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/chemical-biological-engineering" data-drupal-link-system-path="node/7679">Chemical &amp; Biological Engineering</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people-directory/chemistry" data-drupal-link-system-path="node/7680">Chemistry</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/civil-environmental-engineering" data-drupal-link-system-path="node/7681">Civil &amp; Environmental Engineering</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/computer-science" data-drupal-link-system-path="node/7682">Computer Science</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/ecology-evolutionary-biology" data-drupal-link-system-path="node/7683">Ecology &amp; Evolutionary Biology</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/economics" data-drupal-link-system-path="node/7684">Economics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/electrical-engineering" data-drupal-link-system-path="node/7685">Electrical Engineering</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/english" data-drupal-link-system-path="node/7686">English</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/genomics" data-drupal-link-system-path="node/7687">Genomics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/geosciences" data-drupal-link-system-path="node/7688">Geosciences</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people-directory/history" data-drupal-link-system-path="node/7690">History</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/mathematics" data-drupal-link-system-path="node/7691">Mathematics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/mechanical-and-aerospace-engineering" data-drupal-link-system-path="node/7692">Mechanical and Aerospace Engineering</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/molecular-biology" data-drupal-link-system-path="node/7693">Molecular Biology</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/neuroscience" data-drupal-link-system-path="node/7694">Neuroscience</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/operations-research-and-financial-engineering" data-drupal-link-system-path="node/8621">Operations Research and Financial Engineering</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/philosophy" data-drupal-link-system-path="node/12141">Philosophy</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/physics" data-drupal-link-system-path="node/7695">Physics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/plasma-physics" data-drupal-link-system-path="node/7696">Plasma Physics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/politics" data-drupal-link-system-path="node/7697">Politics</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/psychology" data-drupal-link-system-path="node/7698">Psychology</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/people/research-groups/sociology" data-drupal-link-system-path="node/7699">Sociology</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/employment" data-drupal-link-system-path="node/7584">Employment</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/about/diversity" title="Diversity" data-drupal-link-system-path="node/7769">Diversity &amp; Inclusion</a>
+              </li>
+    
+            
+                              <li class="submenu-item expanded">
+                          <a href="/about/contact" data-drupal-link-system-path="node/7554">Contact</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/about/contact/for-visitors" data-drupal-link-system-path="node/7555">For Visitors</a>
+              </li>
+        </ul>
+  
+              </li>
+        </ul>
+  
+              </li>
+        </ul>
+  
+
+
+
+          
+                      <div class="utility-menu">
+              
+              <ul class="nav navbar-nav utility-nav">
+                    <li class="nav-item expanded">
+                <a href="/news" data-drupal-link-system-path="node/7976">News</a>
+                                <button class="toggle-submenu unbutton" type="button" data-toggle="collapse-utility-menu" aria-expanded="false">
+          <span class="toggle-submenu-icon">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            <span class="toggle-submenu-title sr-only">SubMenu</span>
+          </span>
+        </button>
+      <ul class="menu submenu collapse collapse-utility-menu">
+                    <li class="submenu-item">
+                <a href="/news" data-drupal-link-system-path="node/7976">Stories</a>
+              </li>
+                <li class="submenu-item expanded">
+                <a href="/newsletter" data-drupal-link-system-path="node/12711">Newsletter</a>
+                                <button class="toggle-submenu unbutton" type="button" data-toggle="collapse-utility-menu" aria-expanded="false">
+          <span class="toggle-submenu-icon">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            <span class="toggle-submenu-title sr-only">SubMenu</span>
+          </span>
+        </button>
+      <ul class="menu submenu collapse collapse-utility-menu">
+                    <li class="submenu-item">
+                <a href="/news/2025/newsletter-june-2025" data-drupal-link-system-path="node/12671">June 2025</a>
+              </li>
+                <li class="submenu-item">
+                <a href="/news/2025/newsletter-may-2025" data-drupal-link-system-path="node/12576">May 2025</a>
+              </li>
+                <li class="submenu-item">
+                <a href="/news/2025/newsletter-april-2025" data-drupal-link-system-path="node/12456">April 2025</a>
+              </li>
+        </ul>
+  
+              </li>
+                <li class="submenu-item">
+                <a href="/news/archives" data-drupal-link-system-path="node/8231">Archives</a>
+              </li>
+        </ul>
+  
+              </li>
+                <li class="nav-item expanded">
+                <a href="/events" data-drupal-link-system-path="node/7975">Events</a>
+                                <button class="toggle-submenu unbutton" type="button" data-toggle="collapse-utility-menu" aria-expanded="false">
+          <span class="toggle-submenu-icon">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            <span class="toggle-submenu-title sr-only">SubMenu</span>
+          </span>
+        </button>
+      <ul class="menu submenu collapse collapse-utility-menu">
+                    <li class="submenu-item">
+                <a href="/events/event-calendar" data-drupal-link-system-path="node/11481">Event Calendar</a>
+              </li>
+                <li class="submenu-item">
+                <a href="/events/events-archive" data-drupal-link-system-path="node/8006">Events Archive</a>
+              </li>
+                <li class="submenu-item">
+                <a href="/events/training-events" data-drupal-link-system-path="node/7711">Training Events</a>
+              </li>
+        </ul>
+  
+              </li>
+                <li class="nav-item">
+                <a href="/subscribe" data-drupal-link-system-path="node/7735">Subscribe</a>
+              </li>
+                <li class="nav-item">
+                <a href="/about/contact" data-drupal-link-system-path="node/7554">Contact</a>
+              </li>
+        </ul>
+  
+
+
+
+
+            </div>
+                  </div>
+      </div>
+    </nav>
+  
+  <div class="search-bar" id="search-bar">
+  <div class="container navbar-expand-lg" role="search">
+    <h2 class="sr-only">Search</h2>
+    <button class="toggle-searchbar unbutton" type="button" data-toggle="collapse" data-target="#search-bar-container" aria-controls="search-bar-container" aria-expanded="false" aria-label="Toggle search">
+      <span class="toggle-search-icon">
+        <i class="fa-solid fa-search" aria-hidden="true"></i>
+      </span>
+    </button>
+    <div id="search-bar-container" class="collapse navbar-collapse">
+      <div class="search-block-form contextual-region block block-search container-inline" id="block-searchform">
+        <form action="/search" method="get" id="search-block-form" accept-charset="UTF-8">
+          <div id="search-toggled" class="form-group js-form-item form-item js-form-type-search form-type-search js-form-item-keys form-item-keys form-no-label">
+            <label for="edit-search-keys" class="visually-hidden">Search</label>
+            <input placeholder="Search" type="search" id="edit-search-keys" name="keys" value="" size="15" maxlength="128" class="form-search form-control">
+          </div>
+          <div data-drupal-selector="edit-search-actions" class="form-actions js-form-wrapper form-wrapper" id="edit-search-actions"><input type="submit" id="edit-search-submit" value="Submit" class="button js-form-submit form-submit btn btn-primary">
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+  </header>
+
+  
+                  <div class="breadcrumb region region-breadcrumb" id="breadcrumb">
+        <div class="container">
+          
+
+  <nav role="navigation" aria-label="breadcrumb">
+    <ol class="breadcrumb">
+                  <li class="breadcrumb-item">
+          <a href="/">Home</a>
+        </li>
+                        <li class="breadcrumb-item">
+          <a href="/support">How to Get Help</a>
+        </li>
+                        <li class="breadcrumb-item">
+          <a href="/support/knowledge-base">Knowledge Base</a>
+        </li>
+              </ol>
+  </nav>
+
+        </div>
+      </div>
+      
+        <div class="highlighted" id="highlighted">
+      <div class="container">
+          <div class="with-page-title with-lede-field page-title-light-background region region-highlighted">
+    <div data-drupal-messages-fallback class="hidden"></div>
+<div id="block-dfr-page-title" data-block-plugin-id="page_title_block" class="with-block-description block block-core block-page-title-block">
+  
+      
+  
+  
+  
+      
+  <h1 class="page-title">
+        Slurm
+  </h1>
+
+
+  </div>
+
+            <div class="field field--name-field-ps-lede field--type-text-long field--label-hidden field__item"><p>The job scheduler used on the HPC clusters</p></div>
+      
+  </div>
+
+      </div>
+    </div>
+  
+    
+    <div id="main" class="main-container">
+    <div class="container">
+  <div class="row">
+          <div class="sidebar-first section order-first col-sm-4 col-md-3 col-lg-2">
+        
+                            <a id="main-content" class="sr-only skip-link"></a>
+          <nav  aria-label="On this page" class="jump-link-menu-vertical jump-link-menu">
+  <div class="container">
+          <h2 class="jump-link-title">
+        On this page
+      </h2>
+            <div class="jump-link-menu__wrapper">
+      <div class="jump-link-menu__dropdown">
+        <button aria-expanded="false" type="button" class="jump-link-menu__open-dropdown">On this page</button>
+        <ul class="jump-link-menu__dropdown-nav"></ul>
+      </div>
+
+      <div class="jump-link-menu__nav-wrapper">
+        <div class="jump-link-menu__nav-left">
+          <button type="button" aria-label="Scroll left">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="sc-gsDKAQ gxFfgh"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.2071 7.29289C14.5976 7.68342 14.5976 8.31658 14.2071 8.70711L10.9142 12L14.2071 15.2929C14.5976 15.6834 14.5976 16.3166 14.2071 16.7071C13.8166 17.0976 13.1834 17.0976 12.7929 16.7071L8.79289 12.7071C8.60536 12.5196 8.5 12.2652 8.5 12C8.5 11.7348 8.60536 11.4804 8.79289 11.2929L12.7929 7.29289C13.1834 6.90237 13.8166 6.90237 14.2071 7.29289Z" fill="currentColor"></path></svg>
+          </button>
+        </div>
+        <ul class="nav"></ul>
+        <div class="jump-link-menu__nav-right">
+          <button type="button" aria-label="Scroll right">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="sc-gsDKAQ gxFfgh"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.79289 16.7071C9.40237 16.3166 9.40237 15.6834 9.79289 15.2929L13.0858 12L9.79289 8.70711C9.40237 8.31658 9.40237 7.68342 9.79289 7.29289C10.1834 6.90237 10.8166 6.90237 11.2071 7.29289L15.2071 11.2929C15.3946 11.4804 15.5 11.7348 15.5 12C15.5 12.2652 15.3946 12.5196 15.2071 12.7071L11.2071 16.7071C10.8166 17.0976 10.1834 17.0976 9.79289 16.7071Z" fill="currentColor"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+              </div>
+    
+                                    <main  class="main main-content col-sm-12 col-lg-8">
+              <div class="region region-content">
+    <div id="block-dfr-content" data-block-plugin-id="system_main_block" class="with-block-description block block-system block-system-main-block">
+  
+      
+  
+  
+  
+      
+<article class="node node--type-ps-basic-page node--view-mode-full">
+
+  
+    
+
+  
+  <div class="node__content">
+            <div class="constrained-bkg-constrained-content layout layout--onecol">
+    <div class="layout-container">
+      <div  class="layout__region layout__region--content">
+        <div class="with-block-description block block-ps-core block-ps-node-view" data-block-plugin-id="ps_node_view">
+  
+      
+  
+  
+  
+      
+
+  </div>
+<div class="block-ps-text with-block-description block block-layout-builder block-inline-blockps-text" data-block-plugin-id="inline_block:ps_text">
+  
+      
+  
+  
+  
+      
+            <div class="clearfix text-formatted field field--name-field-ps-body field--type-text-long field--label-hidden field__item"><h2><a id="intro"></a>Introduction</h2><p>On all of the cluster systems (except Nobel), users run programs by submitting scripts to the <a href="https://www.schedmd.com">Slurm</a> job scheduler.&nbsp;A Slurm script must do three things:</p><ol><li>prescribe&nbsp;the resource requirements for the job</li><li>set&nbsp;the software environment</li><li>specify&nbsp;the work to be carried out in the form of shell commands</li></ol><p>Below is a sample Slurm script for running a Python code using a Conda environment:</p><pre>#!/bin/bash
+#SBATCH --job-name=myjob            # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=2G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge
+module load anaconda3/2025.6
+conda activate pytools-env
+
+python myscript.py</pre><p>The first line of a&nbsp;Slurm&nbsp;script specifies&nbsp;the Unix shell to be used.&nbsp;This is followed by a series of #SBATCH&nbsp;directives which&nbsp;set the resource requirements and other parameters of&nbsp;the job. The script above requests 1 CPU-core and&nbsp;4 GB of memory for&nbsp;1 minute of run&nbsp;time. The necessary changes to the software environment are made by loading the&nbsp;anaconda3/&lt;version&gt;&nbsp;<a href="/support/knowledge-base/modules" data-entity-type="node" data-entity-uuid="d0378ed9-6482-407b-822d-931955bba0f5" data-entity-substitution="canonical">environment </a><a href="/faq/using-environment-modules">module</a>&nbsp;and activating a particular Conda environment.&nbsp;Lastly, the work to be done, which&nbsp;is the execution of a Python script, is specified in the final line.</p><p>See below for information about the correspondence between tasks and CPU-cores.&nbsp;If your job fails to finish before the specified time limit then it will be killed. You should use an accurate value for&nbsp;the time limit but include an extra&nbsp;20% for safety.</p><p>A job script named job.slurm is submitted to the Slurm scheduler with the <a href="https://slurm.schedmd.com/sbatch.html">sbatch</a>&nbsp;command:</p><pre>$ sbatch job.slurm</pre><p>The job should be submitted to the scheduler&nbsp;from the login node of a cluster. The scheduler will queue the job where it will remain until it has sufficient <a href="/support/knowledge-base/job-priority" data-entity-type="node" data-entity-uuid="2f19147a-a704-4f80-9a91-db74a35afa6f" data-entity-substitution="canonical">priority</a> to run on a&nbsp;compute node.&nbsp;Depending on the nature of the job and available resources, the queue time will vary between seconds to many days.&nbsp;When the job finishes, the user will receive an email. To check the status of queued and running jobs, use the following command:</p><pre>$ squeue --me</pre><p>To see the expected start times of your queued jobs:</p><pre>$ squeue --me --start</pre><p>See Slurm scripts for <a href="/support/knowledge-base/python" data-entity-type="node" data-entity-uuid="a9cbc366-ad17-4b7d-bb1a-72a6fce93c93" data-entity-substitution="canonical">Python</a>, <a href="/support/knowledge-base/rrstudio" data-entity-type="node" data-entity-uuid="8a9d5a41-ecd7-4a8b-b757-ad75fd5698db" data-entity-substitution="canonical">R</a>, <a href="/support/knowledge-base/matlab" data-entity-type="node" data-entity-uuid="d817118c-2cbb-4897-8de7-5f2eba49afcb" data-entity-substitution="canonical">MATLAB</a>, <a href="/support/knowledge-base/julia" data-entity-type="node" data-entity-uuid="7be7fde9-21d8-4c62-97e6-7173bfc7ee2a" data-entity-substitution="canonical">Julia</a> and <a href="/support/knowledge-base/stata" data-entity-type="node" data-entity-uuid="b1ca6991-7080-446a-94bd-99cfcfd842cd" data-entity-substitution="canonical">Stata</a>.</p><h2><a id="commands"></a>Useful Slurm&nbsp;Commands</h2><h3>Before Submitting Your Job (i.e. Learning About the System)</h3><table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td>checkquota</td><td>see your usage of disk space, check that you have enough space in your folders, link at the bottom to ask for more space</td></tr><tr><td>cat /etc/os-release</td><td>information about operation system</td></tr><tr><td>lscpu</td><td>information about the CPUs on that particular node</td></tr><tr><td>snodes</td><td>information about compute nodes</td></tr><tr><td>shownodes</td><td>information about compute nodes (easier to read)</td></tr><tr><td>sinfo</td><td>see how all of the cluster's nodes are being used (e.g., are they idle? down? being used?)</td></tr><tr><td>&nbsp; &nbsp;sinfo -p gpu</td><td>see how GPUs are being used</td></tr><tr><td>qos</td><td>"quality of service" - see how jobs are partitioned, and the limits on each partition</td></tr><tr><td>top</td><td>displays processor activity, commands being run (press 'q' to quit)</td></tr><tr><td>htop</td><td>displays processor activity, commands being run, with color (press 'q' to quit)</td></tr><tr><td>sshare</td><td>shows cluster shares assigned by group</td></tr><tr><td>sprio -w</td><td>see how job priority is designated (shows weights given to each factor)</td></tr></tbody></table><h3>To Submit a Job</h3><table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td>sbatch &lt;name-of-slurm-script&gt;</td><td>submits your job to the scheduler</td></tr><tr><td>salloc</td><td>requests an interactive job on compute node(s) (see below)</td></tr></tbody></table><h3>After Job is Submitted</h3><table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td>squeue</td><td>displays all jobs that are running or waiting to run</td></tr><tr><td>&nbsp; &nbsp;&nbsp;squeue --me</td><td>see your jobs that are running or waiting to run</td></tr><tr><td>&nbsp; &nbsp; squeue --me --start</td><td>report the expected start time for your pending jobs</td></tr><tr><td>&nbsp; &nbsp; squeue -j &lt;jobid&gt;</td><td>show the nodes being used for your running job</td></tr><tr><td>scontrol show jobid &lt;jobid&gt;</td><td>displays detailed info about a job</td></tr><tr><td>sprio</td><td>show priorities assigned to pending jobs</td></tr><tr><td>slurmtop</td><td>displays current jobs</td></tr><tr><td>scancel</td><td>cancel a job (e.g. scancel 2534640)</td></tr></tbody></table><h3>After Job is Completed</h3><table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td>jobstats &lt;jobid&gt;</td><td>see accurate metrics of memory, CPU, and GPU from jobs. See <a href="/support/knowledge-base/job-stats#jobstats">more about jobstats</a>.</td></tr><tr><td>shistory</td><td>displays your job history</td></tr></tbody></table><h2><a id="time-solution"></a>Time to Solution</h2><p>When a&nbsp;job is submitted to the Slurm scheduler, the job first waits in the queue before being executed on the compute nodes. The amount of time spent in the queue is called the queue time. The amount of time it takes for the job to run on the compute nodes&nbsp;is called the execution time.</p><p>The figure below shows that for a parallel code the queue time&nbsp;increases with increasing&nbsp;resources (e.g., CPU-cores) while the execution time decreases with increasing resources. One should try&nbsp;to find the optimal set of resources that&nbsp;minimizes the "time to solution" which is the sum of the queue time and the execution time. The procedure for doing this is called a&nbsp;scaling analysis and it is described in&nbsp;<a href="/support/knowledge-base/scaling-analysis" data-entity-type="node" data-entity-uuid="fd764a0f-e0f5-4d58-a2f4-a3ed1cc45e44" data-entity-substitution="canonical">Choosing the Number of Nodes, CPU-cores and GPUs</a>.</p><figure class="media--type-image media--view-mode-ps-large-freeform figure">
+  
+          <img loading="lazy" src="/sites/g/files/toruqf7796/files/styles/freeform_750w/public/2021-02/queue_execution_total_times.png?itok=fsLOVWs-" width="750" height="180" alt="Time to Solution" class="image-style-freeform-750w">
+
+
+
+
+  </figure>
+
+<p>Note that the above does not apply to serial codes which can only use a single CPU-core.</p><h2><a id="consider"></a>Considerations</h2><p>Some things to think about:</p><ul><li>Make sure your Slurm script loads any dependencies or path changes (i.e., you need python3, so <strong>module load anaconda3/2024.2</strong>). See <a href="/support/knowledge-base/modules" data-entity-type="node" data-entity-uuid="d0378ed9-6482-407b-822d-931955bba0f5" data-entity-substitution="canonical">Environment Modules</a> for more.</li><li>Make sure you call your executable with its full path or&nbsp;<strong>cd</strong>&nbsp;to the appropriate directory.</li><li>If you call the executable directly and not via an interpreter like srun&nbsp;or python&nbsp;or Rscript, etc., make sure you have +x&nbsp;permissions on it.</li><li>Think about the filesystems.&nbsp;Different ones are useful for different things, have different sizes, and they don't all talk to each other&nbsp;(i.e., /tmp is local to a specific node while&nbsp;/scratch/gpfs/&lt;YourNetID&gt;&nbsp;is local to each large cluster). See <a href="/support/knowledge-base/data-storage" data-entity-type="node" data-entity-uuid="ac9a4671-8b62-4833-aaab-9d5aa9e16150" data-entity-substitution="canonical">Data Storage</a> for more.</li><li>/home&nbsp;has a default quota of 10-50 GB&nbsp;and should be used mostly for&nbsp;code&nbsp;and packages needed to run tasks. You can request a modest&nbsp;increase of&nbsp;your /home&nbsp;directory if necessary&nbsp;(see <a href="/support/knowledge-base/checkquota" data-entity-type="node" data-entity-uuid="9f759ff2-1d7b-4301-92fb-60a64699512c" data-entity-substitution="canonical">checkquota</a>).</li></ul><h2><a id="first"></a>Your First Slurm Job</h2><p>If you are new to the HPC clusters or Slurm then see this <a href="/get-started/guide-princeton-clusters/3-first-slurm-job">tutorial</a> for running your first job.&nbsp;Read the <a href="/support/knowledge-base/data-storage" data-entity-type="node" data-entity-uuid="ac9a4671-8b62-4833-aaab-9d5aa9e16150" data-entity-substitution="canonical">Storage page</a>&nbsp;to know where to write the output files of your jobs.</p><h2><a id="terminology"></a>Terminology</h2><p>When you SSH to a cluster you are connecting to the login node, which is shared by all users. Running jobs on the login node is prohibited. Batch and interactive jobs must be&nbsp;submitted from the login node&nbsp;to the Slurm job scheduler using the "sbatch" and "salloc" commands. After waiting in the queue,&nbsp;jobs are are sent to the compute nodes where the actual computational work is carried out.</p><p>Each compute node at Princeton&nbsp;has two or more CPUs where each CPU has many&nbsp;CPU-cores. Run the "snodes" command and look at the "CPUS" column in the output to see the number of CPU-cores per node for a given cluster. You will see values such as 28, 32, 40, 96 and&nbsp;128. If your job requires the number of CPU-cores per node or less then almost always you should use --nodes=1 in your Slurm script.&nbsp;The values for --ntasks and --cpus-per-task are best explained by the examples below.&nbsp;The mathematical product of nodes, ntasks and cpus-per-task&nbsp;is equal to the total number of CPU-cores that you are requesting in your Slurm script. For a serial job these three quantities should be 1. For parallel jobs the product of these quantities will be greater than 1. Note that with the "CPUS" column from "snodes" and the "cpus-per-task" directive, Slurm is using "CPUS" or "cpus" to mean&nbsp;CPU-cores.</p><p>The --time directive sets the maximum runtime needed for your job. You should set this accurately but include an extra 20% since the job will be killed if it does not finish before the limit is reached. For setting the memory requirements of the job using --mem-per-cpu or --mem see our <a href="/support/knowledge-base/memory" data-entity-type="node" data-entity-uuid="69efc479-6aff-4cd1-8969-7f992e4b3342" data-entity-substitution="canonical">memory page</a>.&nbsp;For more definitions of HPC terms see the <a href="/learn/glossary" data-entity-type="node" data-entity-uuid="869735cf-8f8a-4993-8089-c1379dd83211" data-entity-substitution="canonical">glossary</a>.</p><h2><a id="serial"></a>Serial Jobs</h2><p>Serial jobs use&nbsp;only a single CPU-core. This is in contrast to parallel jobs which use multiple CPU-cores simultaneously. Below is a sample Slurm script for a serial R job:</p><pre>#!/bin/bash
+#SBATCH --job-name=slurm-test       # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge<br>module load R/4.5.1<br>
+Rscript myscript.R</pre><p>Slurm&nbsp;scripts are more or less shell scripts&nbsp;with some extra parameters to set the resource requirements:</p><ul><li>--nodes=1 - specify one node</li><li>--ntasks=1 - claim one task (by default 1 per CPU-core)</li><li>--time - claim a time allocation, here 1 minute. Format is DAYS-HOURS:MINUTES:SECONDS</li></ul><p>The other settings configure automated emails. You can delete these lines if you prefer not to receive emails.</p><p>Submit the job to the Slurm job scheduler using the following command:</p><pre>$ sbatch job.slurm</pre><p>In the command above, job.slurm is the filename of your Slurm script. Feel free to use a different name such as submit.sh.</p><p>As a Slurm job runs, unless you redirect output, a file named slurm-######.out will be produced in the directory where the sbatch command was ran.&nbsp;You can use cat, less&nbsp;or any text editor to view it. The file contains the output your program would have written to a terminal&nbsp;if run interactively.</p><h2><a id="salloc"></a>Interactive Allocations with salloc</h2><p>The login node of a cluster can only be used for very light interactive work&nbsp;using up to 10% of the machine (CPU-cores and memory) for up to 10 minutes. This is strictly enforced because violations of this rule can often adversely affect the work of other users. Intensive interactive work&nbsp;must&nbsp;be carried out on the compute nodes&nbsp;using the <a href="https://slurm.schedmd.com/salloc.html">salloc</a> command. To work interactively on a compute node with 1 CPU-core and&nbsp;4 GB of memory for 20&nbsp;minutes, use the following command:</p><pre>$ salloc --nodes=1 --ntasks=1 --mem=4G --time=00:20:00</pre><p>As with batch jobs, interactive allocations go through the queuing system. This means that when the cluster is busy&nbsp;you will have to wait before the allocation is granted. You will see output like the following:</p><pre>salloc: Pending job allocation 32280311
+salloc: job 32280311 queued and waiting for resources
+salloc: job 32280311 has been allocated resources
+salloc: Granted job allocation 32280311
+salloc: Waiting for resource configuration
+salloc: Nodes della-r4c1n13 are ready for job
+[aturing@della-r4c1n13 ~]$</pre><p>After the wait time, you will be placed in a shell on a compute node where you can begin working interactively. Note that your allocation will be terminated when the time limit is reached. You can use the <strong>exit</strong> command&nbsp;to end the session and&nbsp;return to the login node at anytime.</p><h3>GPUs</h3><p>To request a node with a GPU:</p><pre>$ salloc --nodes=1 --ntasks=1 --mem=4G --time=00:20:00 --gres=gpu:1 --mail-type=begin</pre><h3>Graphics</h3><p>If you are working with graphics then to enable X11 forwarding (and see <a href="/support/knowledge-base/gui-applications" data-entity-type="node" data-entity-uuid="c2d49f07-052a-4aa7-9386-90ecea1231ac" data-entity-substitution="canonical">additional requirements</a>):</p><pre>$ salloc --nodes=1 --ntasks=1 --mem=4G --time=00:20:00 --x11</pre><h2><a id="multithreaded"></a>Multithreaded Jobs</h2><p>Some software like the linear algebra routines in NumPy and MATLAB are able to use multiple CPU-cores via libraries that have been written using shared-memory parallel programming models like&nbsp;OpenMP, &nbsp;pthreads&nbsp;or Intel Threading Building Blocks (TBB). OpenMP programs, for instance, run as multiple "threads"&nbsp;on a single node with each thread using one CPU-core.</p><p>Below is an appropriate Slurm script for a multithreaded job:</p><pre>#!/bin/bash
+#SBATCH --job-name=multithread      # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=4           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:15:00             # maximum time needed (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+module purge
+module load matlab/R2025a
+
+matlab -nodisplay -nosplash -r for_loop</pre><p>In the script above, the <strong>cpus-per-task</strong> parameter is used to tell Slurm to run the multithreaded task using&nbsp;four CPU-cores. In general, as cpus-per-task&nbsp;increases, the execution time of the job decreases while the queue time increases and the parallel efficiency decreases.&nbsp;The optimal value of cpus-per-task must be determined empirically by conducting a <a href="/support/knowledge-base/scaling-analysis" data-entity-type="node" data-entity-uuid="fd764a0f-e0f5-4d58-a2f4-a3ed1cc45e44" data-entity-substitution="canonical">scaling analysis</a>.&nbsp;Here are some examples of&nbsp;multithreaded codes:&nbsp;<a href="https://github.com/PrincetonUniversity/hpc_beginning_workshop/tree/main/cxx/multithreaded">C++</a>, <a href="https://github.com/PrincetonUniversity/hpc_beginning_workshop/tree/main/python/cpu/numpy">Python</a> and <a href="https://github.com/PrincetonUniversity/hpc_beginning_workshop/tree/master/RC_example_jobs/matlab/multithreaded">MATLAB</a>. See a list of external resources for <a href="/education/external-online-resources/openmp" data-entity-type="node" data-entity-uuid="17b5fddd-9023-4c9a-a479-988b76a371d1" data-entity-substitution="canonical">learning more about OpenMP</a>.</p><p>For a multithreaded, single-node&nbsp;job&nbsp;make sure that the product of ntasks and cpus-per-task is equal to or less than the number of CPU-cores on a node. Use the "snodes" command and look at the "CPUS" column to see the CPU-cores per node information.</p><p><strong>IMPORTANT</strong>: Only codes that have been explicitly written to&nbsp;use&nbsp;multiple threads will be able to take advantage of multiple CPU-cores. Using a value of cpus-per-task&nbsp;greater than 1 for a code that has not been parallelized will not improve its performance. Instead, doing so will waste resources and cause your next job submission to have a lower priority.</p><h2><a id="multinode"></a>Multinode or Parallel MPI&nbsp;Jobs</h2><p>Many scientific codes use of a form of&nbsp;distributed-memory parallelism based on&nbsp;MPI (Message Passing Interface). These codes are able to&nbsp;use multiple CPU-cores on multiple nodes simultaneously. For example, the script below uses 32 CPU-cores on each of 2&nbsp;nodes:</p><pre>#!/bin/bash
+#SBATCH --job-name=multinode        # create a short name for your job
+#SBATCH --nodes=2                   # node count
+#SBATCH --ntasks-per-node=32        # number of tasks per node
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:05:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge
+module load intel/2022.2.0
+module load intel-mpi/intel/2021.7.0
+
+srun /home/aturing/.local/bin/myprog &lt;args&gt;</pre><p><strong>IMPORTANT</strong>: Only codes that have been explicitly written to run in parallel can take advantage of multiple cores on multiple nodes. Using a value of --ntasks&nbsp;greater than 1 for a code that has not been parallelized will not improve its performance. Instead you will waste resources and have a lower priority for your next job submission.</p><p><strong>IMPORTANT</strong>: The optimal value of --nodes&nbsp;and --ntasks&nbsp;for a parallel code must be determined empirically by conducting a <a href="/support/knowledge-base/scaling-analysis" data-entity-type="node" data-entity-uuid="fd764a0f-e0f5-4d58-a2f4-a3ed1cc45e44" data-entity-substitution="canonical">scaling analysis</a>. As these quantities increase, the parallel efficiency tends to decrease and queue times increase. The parallel efficiency is the serial execution time divided by the product of the parallel execution time and the number of tasks. If multiple nodes are used then in most cases&nbsp;one should try to use all of the CPU-cores on each node.</p><p>You should try to use all the cores on one node before requesting additional nodes. That is, it is better to&nbsp;use one node and 32 cores than&nbsp;two nodes and 16 cores per node.</p><p>MPI jobs are composed of&nbsp;multiple processes running&nbsp;across one or more&nbsp;nodes. The processes coordinate through&nbsp;point-to-point and collective operations.&nbsp;More information about running MPI jobs is in <a href="/education/online-tutorials/getting-started/compiling-and-running-mpi/"><strong>Compiling and Running MPI Jobs</strong>.</a></p><p>The Princeton HPC clusters are configured to use <strong>srun</strong> which is the Slurm analog&nbsp;of <strong>mpirun</strong> or <strong>mpiexec</strong>. Do not use mpirun or mpiexec.</p><h2><a id="hybrid"></a>Multinode, Multithreaded&nbsp;Jobs</h2><p>Many codes&nbsp;combine&nbsp;multithreading with multinode parallelism using a hybrid OpenMP/MPI approach. Below is a Slurm script appropriate for such a code:</p><pre>#!/bin/bash
+#SBATCH --job-name=hybrid           # create a short name for your job
+#SBATCH --nodes=2                   # node count
+#SBATCH --ntasks-per-node=8         # total number of tasks per node
+#SBATCH --cpus-per-task=4           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+module purge
+module load intel/2022.2.0
+module load intel-mpi/intel/2021.7.0
+
+srun /home/aturing/.local/bin/myprog &lt;args&gt;</pre><p>The script above allocates 2 nodes with 32 CPU-cores per node. For OpenMP/MPI codes, the script above would produce 8 MPI processes per node. When an OpenMP parallel directive is encountered, each process would execute&nbsp;the work using 4 CPU-cores. For a simple C++ example of this see <a href="https://github.com/PrincetonUniversity/hpc_beginning_workshop/tree/main/cxx/hybrid_multithreaded_parallel">this page</a>.&nbsp;For more details about the SBATCH options see <a href="/faq/how-to-use-openmpi-with-o">this page</a>.</p><p>As discussed above, the optimal values of nodes, ntasks-per-node and cpus-per-task must be determined empirically by conducting a <a href="/support/knowledge-base/scaling-analysis" data-entity-type="node" data-entity-uuid="fd764a0f-e0f5-4d58-a2f4-a3ed1cc45e44" data-entity-substitution="canonical">scaling analysis</a>. Many codes that use the hybrid OpenMP/MPI model will run sufficiently fast on a single node.</p><p>Make sure that the product of ntasks-per-node and cpus-per-task is equal to or less than the number of CPU-cores on a node. Use the "snodes" command and look at the "CPUS" column&nbsp;to see the CPU-cores per node information.</p><p>The Princeton HPC clusters are configured to use <strong>srun</strong> which is the Slurm analog&nbsp;of <strong>mpirun</strong> or <strong>mpiexec</strong>. Do not use mpirun or mpiexec.</p><p>The SRUN_CPUS_PER_TASK environment variable is set since "the number of cpus per task specified for salloc or sbatch&nbsp;is not automatically inherited by&nbsp;srun". See the sbatch man page for more.</p><h2><a id="gpus"></a>GPU Jobs</h2><p>GPUs are available on Adroit, Della, Stellar and Tiger. See the number of <a href="/support/knowledge-base/gpu-computing#hardware" data-entity-type="node" data-entity-uuid="86b5232b-11da-4492-a280-9003d8a9387d" data-entity-substitution="canonical">GPUs per cluster</a>. To use GPUs in a job add an SBATCH statement with the <strong>--gres</strong> option:</p><pre>#!/bin/bash
+#SBATCH --job-name=mnist            # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --gres=gpu:1                # number of gpus per node
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge
+module load anaconda3/2025.6
+conda activate torch-env
+
+python myscript.py</pre><p>To use, for instance, four GPUs per node the appropriate line would be:</p><pre>#SBATCH --gres=gpu:4</pre><p><strong>IMPORTANT</strong>: Only codes that have&nbsp;been explicitly written to run on GPUs can take advantage of GPUs. Adding the <strong>--gres</strong> option to a Slurm script for a CPU-only code will not speed-up the execution time but it will waste resources, increase your queue time and lower the priority of your next job submission. Furthermore, some codes are only written to use a single GPU so&nbsp;avoid&nbsp;requesting multiple GPUs unless your code can use them. If the code can use multiple GPUs then you should conduct a <a href="/support/knowledge-base/scaling-analysis" data-entity-type="node" data-entity-uuid="fd764a0f-e0f5-4d58-a2f4-a3ed1cc45e44" data-entity-substitution="canonical">scaling analysis</a> to find the optimal number of GPUs to use.</p><p>See the <a href="/support/knowledge-base/gpu-computing" data-entity-type="node" data-entity-uuid="86b5232b-11da-4492-a280-9003d8a9387d" data-entity-substitution="canonical">GPU Computing</a> page&nbsp;for more&nbsp;information about GPUs&nbsp;at Princeton. Note that several codes require that multiple CPU-cores be used in addition to the GPU for optimal performance.</p><h2><a id="arrays"></a>Job&nbsp;Arrays</h2><p>Job arrays are used for&nbsp;running the same job a large number of times with only slight differences between the jobs. For instance, let's say that you need to run 100 jobs, each with a different seed value for the random number generator. Or maybe you want to run the same&nbsp;analysis script on data for each of the 50 states in the USA. Job arrays are the best choice&nbsp;for such cases.</p><p>Below is an example Slurm script for running Python where there are 5 jobs in the array:</p><pre>#!/bin/bash
+#SBATCH --job-name=array-job        # create a short name for your job
+#SBATCH --output=slurm-%A.%a.out    # stdout file
+#SBATCH --error=slurm-%A.%a.err     # stderr file
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --array=0-4                 # job array with index values 0, 1, 2, 3, 4
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+echo "My SLURM_ARRAY_JOB_ID is $SLURM_ARRAY_JOB_ID."
+echo "My SLURM_ARRAY_TASK_ID is $SLURM_ARRAY_TASK_ID"
+echo "Executing on the machine:" $(hostname)
+
+module purge
+module load anaconda3/2025.6
+conda activate myenv
+
+python myscript.py</pre><p>The key line in the Slurm script above is:</p><pre>#SBATCH --array=0-4</pre><p>In this example, the Slurm script will run five jobs. Each job will have a different value of SLURM_ARRAY_TASK_ID (i.e., 0, 1, 2, 3, 4). The value of SLURM_ARRAY_TASK_ID&nbsp;can be used to differentiate the jobs within the array. See a <a href="https://github.com/PrincetonUniversity/hpc_beginning_workshop/tree/main/job_array/python">full example</a> for Python. One can either pass SLURM_ARRAY_TASK_ID to the executable as a command-line parameter or reference it as an environment variable. Using the latter approach, the first few lines of a Python script (called myscript.py above) might look like this:</p><pre>import os
+idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
+parameters = [2.5, 5.0, 7.5, 10.0, 12.5]
+myparam = parameters[idx]
+# execute the rest of the script using myparam</pre><p>For an R script you can use:</p><pre>idx &lt;- as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
+parameters &lt;- c(2.5, 5.0, 7.5, 10.0, 12.5)
+myparam &lt;- parameters[idx + 1]
+# execute the rest of the script using myparam</pre><p>For MATLAB:</p><pre>idx = uint16(str2num(getenv("SLURM_ARRAY_TASK_ID")))
+parameters = [2.5, 5.0, 7.5, 10.0, 12.5]
+myparam = parameters(idx + 1)
+# execute the rest of the script using myparam</pre><p>For Julia:</p><pre>idx = parse(Int64, ENV["SLURM_ARRAY_TASK_ID"])
+parameters = (2.5, 5.0, 7.5, 10.0, 12.5)
+myparam = parameters[idx + 1]
+# execute the rest of the script using myparam</pre><p><strong>Be sure to use the value of&nbsp;SLURM_ARRAY_TASK_ID to assign unique&nbsp;names&nbsp;to the output files for each job in the array.</strong> Failure to do this will result in all jobs using the same filename(s).</p><p>You can set the array numbers to different sets of numbers and ranges, for example:</p><pre>#SBATCH --array=0,100,200,300,400,500
+#SBATCH --array=0-24,42,56-99
+#SBATCH --array=1-1000
+</pre><p>However, the array numbers must be less than the maximum number of jobs allowed in the array (see the "scontrol" command below).&nbsp;</p><p>Note that it is normal to see (QOSMaxJobsPerUserLimit)&nbsp;listed in the NODELIST(REASON)&nbsp;column of <strong>squeue</strong>&nbsp;output for job arrays. It indicates that you can only have a certain number of jobs actively queued. Just wait and all the jobs of the array will run. Use the <strong>qos</strong> command to see the limits.&nbsp;A maximum number of simultaneously running tasks from the job array may be specified using a "%" separator. For example "--array=0-15%4" will limit the number of simultaneously running tasks from this job array to 4.</p><p>To see the limit on the number of jobs in an array:</p><pre># ssh della
+$ scontrol show config | grep Array
+MaxArraySize      = 2501</pre><p>If you encounter a&nbsp;QOSMaxSubmitJobPerUserLimit error with sbatch when the number of jobs in the array is less than MaxArraySize then it probably means that your run time limit is causing you to land in the test QOS which has a limit of only a few hundred jobs (run the "qos" command and see the MaxSubmit column for the exact value).&nbsp;The solution is to increase your run time limit to 62 minutes which will cause you to land in a production QOS. The value of MaxSubmit may also be smaller than MaxArraySize for other QOS partitions. Ultimately, the number of allowable jobs within an array is set by the minimum of MaxArraySize and MaxSubmit for a given QOS. See the "Job Scheduling" section of a cluster webpage (e.g., <a href="/systems/della#scheduling" data-entity-type="node" data-entity-uuid="8bf1ec40-7160-4fc1-b7b3-4fe9ed20108e" data-entity-substitution="canonical">Della</a>) for the relationship between QOS and run time limits.</p><p>Each job in the array will have the same values for <strong>nodes</strong>, <strong>ntasks</strong>, <strong>cpus-per-task</strong>, <strong>time</strong>&nbsp;and so on. This means that job arrays can be used to handle everything from serial jobs to large multi-node cases.</p><p>Use the “shistory” command to see the state of completed jobs within the array. One can also use <a href="/node/8881#reportseff">reportseff</a><a href="/node/8881#Jobstats"> </a>to see job data for many jobs at once.</p><p>See the <a href="https://slurm.schedmd.com/job_array.html">Slurm documentation</a> for more on job arrays.</p><h2><a id="bg-wait"></a>Running Multiple Jobs in Parallel as a Single Job</h2><p>In general one should use job arrays for this task but in some cases different executables need to run simultaneously. In the example below all the executables are the same but this is not requred. If we have, for example, three&nbsp;jobs and we want to run them in parallel as a single Slurm&nbsp;job, we can use the following script:</p><pre>#!/bin/bash
+#SBATCH --job-name=myjob            # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=3                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem-per-cpu=4G            # memory per cpu-core (4G is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge
+module load anaconda3/2025.6
+export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+
+srun -N 1 -n 1 --exclusive python demo.py 0 &amp;
+srun -N 1 -n 1 --exclusive python demo.py 1 &amp;
+srun -N 1 -n 1 --exclusive python demo.py 2 &amp;
+wait</pre><p>Since we want to run the jobs in parallel, we place the &amp; character at the end of each srun command so that each job runs in the background. The wait command serves as a barrier keeping the overall job running&nbsp;until all&nbsp;jobs are complete.</p><p><strong>Do not use this method if the&nbsp;tasks running within the&nbsp;overall job are expected to have significantly different execution times.</strong> Doing so would result in idle processors until&nbsp;the longest task finished. Job arrays should always be used in place of this method when possible.</p><p>If you want to run a large number of short jobs while reusing the same Slurm allocation then see <a href="https://github.com/luet/while-loop-srun">this example</a>.</p><p>For GPU jobs, make sure your script uses these elements:</p><pre>#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --gres=gpu:2
+...
+srun -N 1 -n 1 --gres=gpu:1 --exclusive python demo.py 0 &amp;
+srun -N 1 -n 1 --gres=gpu:1 --exclusive python demo.py 1 &amp;
+wait</pre><p>For more see "MULTIPLE PROGRAM CONFIGURATION" on <a href="https://slurm.schedmd.com/srun.html">this page</a>.</p><h2><a id="large-mem"></a>Large Memory&nbsp;Jobs</h2><p>One advantage of using the HPC clusters over your laptop or workstation is&nbsp;the large amount of RAM available per node. On some clusters you can run a job with 100's of GB of memory, for example. This can be very useful for working with a large data set. To find out how much memory each node has, run the <strong>snodes</strong>&nbsp;command and look at the MEMORY column which is in megabytes.</p><pre>#!/bin/bash
+#SBATCH --job-name=slurm-test       # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem=100G                  # memory per node (4G per cpu-core is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge
+module load anaconda3/2025.6
+conda activate micro-env
+
+python myscript.py</pre><p>The example above runs a Python script using 1 CPU-core and 100 GB of memory. In all Slurm scripts you should use an accurate value for&nbsp;the required memory but include an extra&nbsp;20% for safety.&nbsp;For more see <a href="/memory">Allocating Memory</a>.</p><h2><a id="dependencies"></a>Running Jobs in a Sequence (Job Dependencies)</h2><p>Here we explain how to automatically run a sequence of jobs using Slurm job dependencies. This is useful for jobs that need to run for much longer than the time limit. Or when a second job can only be started after the first job is finished because of a dependency between the two.</p><p>To use Slurm job dependencies for running a long job in steps your application must have a way of writing a checkpoint file and it must be able to figure out which checkpoint file to read at the start of each job step. If your application does not provide these two requirements then one can typically write scripts to deal with it.</p><p>The "singleton" job dependency works by queueing subsequent jobs with the same job-name until the previous job with that name finishes. Consider the Slurm script (job.slurm) below and note the --job-name and --dependency directives:</p><pre>#!/bin/bash
+#SBATCH --job-name=LongJob          # create a short name for your job
+#SBATCH --nodes=1                   # node count
+#SBATCH --ntasks=1                  # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1           # cpu-cores per task (&gt;1 if multi-threaded tasks)
+#SBATCH --mem=4G                    # memory per node (4G per cpu-core is default)
+#SBATCH --time=00:01:00             # total run time limit (HH:MM:SS)
+#SBATCH --dependency=singleton      # job dependency
+#SBATCH --mail-type=begin,end,fail  # receive email notifications
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu
+
+module purge
+module load anaconda3/2025.6
+conda activate galaxy-env
+
+python myscript.py</pre><p>To run the code in a sequence of five successive steps:</p><pre>$ sbatch job.slurm   # step 1
+$ sbatch job.slurm   # step 2
+$ sbatch job.slurm   # step 3
+$ sbatch job.slurm   # step 4
+$ sbatch job.slurm   # step 5</pre><p>The first job step can run immediately. However, step 2 cannot start until step 1 has finished and so on. That is, each step after the first will wait for the one before it since each is waiting for "LongJob" to finish. Read more about job dependencies on the <a href="https://slurm.schedmd.com/sbatch.html">Slurm</a> website. Note that job dependencies are discouraged on Stellar.</p><h2><a id="reports"></a>Efficiency Reports</h2><p>If you include&nbsp;the SBATCH mail directives below in your Slurm script then you will receive an email after each job finishes:</p><pre>#SBATCH --mail-type=end
+#SBATCH --mail-user=&lt;YourNetID&gt;@princeton.edu</pre><p>Below is a sample report:</p><pre>================================================================================
+                              Slurm Job Statistics
+================================================================================
+         Job ID: 1234567
+  NetID/Account: aturing/math
+       Job Name: sys_logic_ordinals.sh
+          State: COMPLETED
+          Nodes: 1
+      CPU Cores: 1
+     CPU Memory: 64GB
+           GPUs: 1
+  QOS/Partition: gpu-short/gpu
+        Cluster: della
+     Start Time: Thu May 11, 2023 at 1:52 PM
+       Run Time: 14:27:09
+     Time Limit: 16:00:00<br>
+                              Overall Utilization
+================================================================================
+  CPU utilization  [|||||||||||||||||||||||||||||||||||||||||||||| 93%]
+  CPU memory usage [|||||||||||||||                                30%]
+  GPU utilization  [||||||||||||||||||||||||||||||||||||||||||     85%]
+  GPU memory usage [|||||||||||||||||||||||||||||||||||||||||||||| 92%]<br>
+                              Detailed Utilization
+================================================================================
+  CPU utilization per node (CPU time used/run time)
+      della-l05g2: 00:25:16/00:27:09 (efficiency=93.1%)<br>
+  CPU memory usage per node - used/allocated
+      della-l05g2: 19.3GB/64.0GB (19.3GB/64.0GB per core of 1)<br>
+  GPU utilization per node
+      della-l05g2 (GPU 1): 85.3%<br>
+  GPU memory usage per node - maximum used/total
+      della-l05g2 (GPU 1): 73.6GB/80.0GB (92.0%)<br>
+                                     Notes
+================================================================================
+   * For additional job metrics including metrics plotted against time:
+      https://mydella.princeton.edu/pun/sys/jobstats/1234567  (VPN required off-campus)</pre><p>The report provides information about runtime, CPU usage, memory usage and so on.&nbsp;You should inspect these values to determine if you are using the resources properly. See the <a href="/support/knowledge-base/jobstats" data-entity-type="node" data-entity-uuid="b7d338fc-e7f2-4316-8ba7-1b265a73608f" data-entity-substitution="canonical">Job Stats page</a> for more information.</p><p>Your queue time is in part determined by the amount of resources you are requesting. Your fairshare value, which in part determines the <a href="/support/knowledge-base/job-priority" data-entity-type="node" data-entity-uuid="2f19147a-a704-4f80-9a91-db74a35afa6f" data-entity-substitution="canonical">priority</a> of your next job, is decreased in proportion to the amount of resources you have used over&nbsp;the previous 30 days.</p><h2><a id="priority"></a>Why Won't My Job Run?</h2><p>The start time of a job is determined by <a href="/support/knowledge-base/job-priority" data-entity-type="node" data-entity-uuid="2f19147a-a704-4f80-9a91-db74a35afa6f" data-entity-substitution="canonical">job priority</a>.</p><h2><a id="resources"></a>More Slurm Resources</h2><p>See&nbsp;a comprehensive list of <a href="/education/external-online-resources/slurm" data-entity-type="node" data-entity-uuid="26d6f650-542d-42ec-b9c8-16eb04c62d98" data-entity-substitution="canonical">external resources for learning&nbsp;Slurm</a>.</p></div>
+      
+  </div>
+
+      </div>
+    </div>
+  </div>
+
+      </div>
+
+</article>
+
+  </div>
+
+  </div>
+
+    </main>
+          <aside class="sidebar-second col-sm-4 col-md-3 col-lg-2">
+                  <nav class="main-sidebar-menu" aria-label="section">
+            <h2 class="sr-only">Section Menu</h2>
+            
+              <ul class="nav navbar-nav main" role="list">
+        
+                          
+                              <li class="nav-item">
+                          <a href="/support/faq" data-drupal-link-system-path="node/7582">FAQ</a>
+              </li>
+    
+                          
+                              <li class="nav-item">
+                          <a href="/support/submit-ticket" data-drupal-link-system-path="node/8011">Submit a Ticket</a>
+              </li>
+    
+                          
+                              <li class="nav-item expanded active">
+                          <a href="/knowledge-base" class="knowledge-base">Knowledge Base</a>
+                        <button class="toggle-submenu unbutton" type="button" data-toggle="collapse" aria-expanded="false">
+        <span class="toggle-submenu-icon">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </span>
+        <span class="sr-only">Submenu</span>
+      </button>
+                    <ul class="submenu collapse submenu--2-col" role="list">
+               
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ai-sandbox" data-drupal-link-system-path="node/12401">A.I. Sandbox</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/apptainer" data-drupal-link-system-path="node/10796">Apptainer</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/checkquota" data-drupal-link-system-path="node/7574">Checkquota</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/connect-ssh" title="Connect to the Clusters via SSH" data-drupal-link-system-path="node/9021">Connect by SSH</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/connect-web" title="Connect to the Clusters via a Web Browser" data-drupal-link-system-path="node/9016">Connect by Web</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/custom-modules" data-drupal-link-system-path="node/8181">Custom Modules</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ddt-debugger" data-drupal-link-system-path="node/7581">DDT (debugger)</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/data-storage" data-drupal-link-system-path="node/7529">Data Storage</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/data-transfer" title="Learn how to get your files and off the cluster" data-drupal-link-system-path="node/9031">Data Transfer</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/datasets" data-drupal-link-system-path="node/9001">Datasets</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ffmpeg" data-drupal-link-system-path="node/12691">FFMPEG</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gpu-computing" title="Concepts, hardware and tools for using GPUs" data-drupal-link-system-path="node/8686">GPU Computing</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gromacs" data-drupal-link-system-path="node/8206">GROMACS</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gui-applications" data-drupal-link-system-path="node/7743">GUI Applications</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/gaussian" data-drupal-link-system-path="node/7765">Gaussian</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/globus" title="High-speed data transfer" data-drupal-link-system-path="node/11926">Globus</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/hugging-face" title="Hugging Face" data-drupal-link-system-path="node/10296">Hugging Face</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jax" data-drupal-link-system-path="node/8526">JAX</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jenkins" data-drupal-link-system-path="node/8216">Jenkins</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/job-priority" data-drupal-link-system-path="node/7741">Job Priority</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jobstats" data-drupal-link-system-path="node/8881">Jobstats</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/julia" data-drupal-link-system-path="node/7742">Julia</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/jupyter" data-drupal-link-system-path="node/7747">Jupyter</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/lammps" data-drupal-link-system-path="node/7752">LAMMPS</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/map-profiler" data-drupal-link-system-path="node/7567">MAP (profiler)</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/matlab" data-drupal-link-system-path="node/7572">MATLAB</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/mathematica" data-drupal-link-system-path="node/7766">Mathematica</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/memory" data-drupal-link-system-path="node/7737">Memory</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/modules" data-drupal-link-system-path="node/7563">Modules</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/mpi4py" data-drupal-link-system-path="node/7746">Mpi4py</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/namd" data-drupal-link-system-path="node/7753">NAMD</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ondemand-portal" title="How to use the clusters via a web browser." data-drupal-link-system-path="node/9596">OnDemand Portal</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/petsc" data-drupal-link-system-path="node/7739">PETSc</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/parallel-code" data-drupal-link-system-path="node/9036">Parallel Code</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/ports-and-proxydefault" data-drupal-link-system-path="node/10816">Ports and proxy/default</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/pytorch" data-drupal-link-system-path="node/7748">PyTorch</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/python" data-drupal-link-system-path="node/7749">Python</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/quantum-espresso" data-drupal-link-system-path="node/8636">Quantum Espresso</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/rrstudio" data-drupal-link-system-path="node/7745">R/RStudio</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/recover-files" data-drupal-link-system-path="node/7738">Recover Files</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/scaling-analysis" data-drupal-link-system-path="node/7996">Scaling Analysis</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/sharing-data" data-drupal-link-system-path="node/7794">Sharing Data</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/singularity" data-drupal-link-system-path="node/7754">Singularity</a>
+              </li>
+    
+            
+                              <li class="submenu-item active">
+                          <a href="/support/knowledge-base/slurm" data-drupal-link-system-path="node/7592" class="is-active" aria-current="page">Slurm</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/snakemake" data-drupal-link-system-path="node/12406">Snakemake</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/spark" data-drupal-link-system-path="node/7565">Spark</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/stata" data-drupal-link-system-path="node/7736">Stata</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/suppressing-duo" data-drupal-link-system-path="node/7709">Suppressing Duo</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/tensorflow" data-drupal-link-system-path="node/7750">TensorFlow</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/tigress-cifs" data-drupal-link-system-path="node/8176">Tigress-cifs</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/tigress-web" data-drupal-link-system-path="node/7792">Tigress-web</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/turbovnc" title="TurboVNC" data-drupal-link-system-path="node/8086">TurboVNC</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/vasp" data-drupal-link-system-path="node/7791">VASP</a>
+              </li>
+    
+            
+                              <li class="submenu-item">
+                          <a href="/support/knowledge-base/vs-code" data-drupal-link-system-path="node/9396">VS Code</a>
+              </li>
+        </ul>
+  
+              </li>
+    
+                          
+                              <li class="nav-item">
+                          <a href="/support/help-sessions" data-drupal-link-system-path="node/7597">Help Session</a>
+              </li>
+        </ul>
+  
+
+
+          </nav>
+                
+      </aside>
+      </div>
+        <nav class="back-to-top sr-only sr-only-focusable" aria-label="Back to top"><button><div class="full-name sr-only">Back to </div><div class="short-name">Top</div></button></nav>
+  </div>
+
+
+  </div>
+
+        <footer role="contentinfo" class="footer region region-footer" id="footer">
+      <h2 class="sr-only">Footer</h2>
+      <div class="container">
+    <div class="constrained-bkg-constrained-content layout layout--threecol-33-34-33">
+    <div class="layout-inner-container">
+      <div  class="layout__region layout__region--first layout__region--thirds layout__region--narrow">
+        
+<div class="block-ps-image with-block-description block block-layout-builder block-inline-blockps-image" data-block-plugin-id="inline_block:ps_image">
+  
+      
+    
+
+  
+      <figure  class="figure media--type-image ratio--freeform size--small alignment--left">
+                                <a href="/">  <img src="/sites/g/files/toruqf7796/files/styles/freeform_750w/public/2025-06/Research%20Computing%20Tiger.png?itok=x7CEDj14" width="750" height="195" alt="Research Computing" loading="lazy" class="image-style-freeform-750w" />
+
+
+</a>
+                </figure>
+  
+</div>
+<div class="block-ps-text with-block-description block block-layout-builder block-inline-blockps-text" data-block-plugin-id="inline_block:ps_text">
+  
+      
+  
+  
+  
+      
+            <div class="clearfix text-formatted field field--name-field-ps-body field--type-text-long field--label-hidden field__item"><p>3rd Floor Peter B. Lewis Science Library<br>Washington Road and Ivy Lane<br>Princeton, New Jersey 08544</p></div>
+      
+  </div>
+<div class="block-ps-text with-block-description block block-layout-builder block-inline-blockps-text" data-block-plugin-id="inline_block:ps_text">
+  
+      
+  
+  
+  
+      
+            <div class="clearfix text-formatted field field--name-field-ps-body field--type-text-long field--label-hidden field__item"><p><a href="https://research.princeton.edu/form/share-your-feedback">Share your feedback.</a></p></div>
+      
+  </div>
+
+      </div>
+
+      <div  class="layout__region layout__region--second layout__region--thirds layout__region--narrow">
+        <div class="block-ps-text with-block-description block block-layout-builder block-inline-blockps-text" data-block-plugin-id="inline_block:ps_text">
+  
+      
+  
+  
+  
+      
+            <div class="clearfix text-formatted field field--name-field-ps-body field--type-text-long field--label-hidden field__item"><p><a href="http://research.princeton.edu/">Office of the Dean for Research</a></p><ul><li><a href="https://innovation.princeton.edu/">Office of Innovation</a><ul><li><a href="https://innovation.princeton.edu/infrastructure-programs">Innovation Infrastructure and Programs</a></li><li><a href="http://partnerships.princeton.edu/">Strategic Partnerships and Engagement</a></li><li><a href="http://www.princeton.edu/patents">Technology Licensing and New Ventures</a></li></ul></li><li><a href="https://lar.princeton.edu/">Research Animal Programs</a><ul><li>Laboratory Animal Resources</li><li>Primate Research Resources</li></ul></li><li><a href="https://researchcomputing.princeton.edu/">Research Computing</a></li><li><a href="https://research.princeton.edu/research-development">Research Development</a></li><li><a href="http://ria.princeton.edu/">Research Integrity and Assurance</a></li><li><a href="http://orpa.princeton.edu/">Research and Project Administration</a></li></ul><p><a href="https://research.princeton.edu/about-us/our-team/office-vice-president-princeton-plasma-physics-laboratory">Office of the Vice President for the Princeton Plasma Physics Laboratory</a></p></div>
+      
+  </div>
+
+      </div>
+
+      <div  class="layout__region layout__region--third layout__region--thirds layout__region--narrow">
+        <div class="block-ps-text with-block-description block block-layout-builder block-inline-blockps-text" data-block-plugin-id="inline_block:ps_text">
+  
+      
+  
+  
+  
+      
+            <div class="clearfix text-formatted field field--name-field-ps-body field--type-text-long field--label-hidden field__item"><p><a href="/getting-started" data-entity-type="node" data-entity-uuid="aea21f53-6a41-43b7-875e-6822e3a37232" data-entity-substitution="canonical">Get Started</a></p><p><a href="/support/faq" data-entity-type="node" data-entity-uuid="efb93562-1d04-44b3-9d70-8b23c965a40a" data-entity-substitution="canonical">FAQ</a></p><p><a href="/support/knowledge-base" data-entity-type="node" data-entity-uuid="d7e3b7a6-84f2-4886-b820-a2e4658e3c13" data-entity-substitution="canonical">Knowledge Base</a></p><p><a href="/get-started/guide-princeton-clusters" data-entity-type="node" data-entity-uuid="e00678d7-c1b2-48cb-8671-dbc82ddd8131" data-entity-substitution="canonical">Guide to Princeton Clusters</a></p></div>
+      
+  </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="subfooter">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4">
+       
+<div class="subfooter-links">
+  <ul class="list-unstyled">
+    <li>
+      <a href="https://inclusive.princeton.edu/about/our-commitment-equal-opportunity-and-non-discrimination">Diversity & Non-Discrimination</a>
+    </li>
+    <li>
+      <a href="https://accessibility.princeton.edu/help">Accessibility Help</a>
+    </li>
+  </ul>
+</div>
+
+      </div>
+      <div class="col-md-4">
+         <p class="copyright-text">
+  &copy; 2026 The Trustees of Princeton University
+</p>
+
+ 
+      </div>
+      
+      <div class="col-md-4 text-sm-left text-md-right copyright">
+        <a href="http://www.princeton.edu" class="pu-logo" title="Princeton University"><img
+              src="/profiles/ps/themes/ps_base/images/pu-logo-stacked.svg" alt="Princeton University"/>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+    </footer>
+  
+</div> 
+  </div>
+
+    <span id="ps-current-username" data-username=""></span>
+
+    <script src="/core/assets/vendor/jquery/jquery.min.js?v=3.7.1"></script>
+<script src="/core/assets/vendor/once/once.min.js?v=1.0.1"></script>
+<script src="/core/misc/drupal.js?v=10.5.6"></script>
+<script src="/core/misc/drupal.init.js?v=10.5.6"></script>
+<script src="/profiles/ps/themes/ps_base/bootstrap/js/bootstrap.min.js?tbgfm5"></script>
+<script src="/core/assets/vendor/tabbable/index.umd.min.js?v=6.2.0"></script>
+<script src="/core/misc/debounce.js?v=10.5.6"></script>
+<script src="/core/misc/form.js?v=10.5.6"></script>
+<script src="/profiles/ps/themes/ps_tiger/js/header.js?tbgfm5"></script>
+<script src="/profiles/ps/themes/ps_tiger/js/image-no-border.js?tbgfm5"></script>
+<script src="/sites/g/files/toruqf7796/themes/site/js/waypoints.js?tbgfm5"></script>
+<script src="/sites/g/files/toruqf7796/themes/site/js/counterup.js?tbgfm5"></script>
+<script src="/sites/g/files/toruqf7796/themes/site/js/stat-counter.js?tbgfm5"></script>
+<script src="/core/misc/progress.js?v=10.5.6"></script>
+<script src="/core/assets/vendor/loadjs/loadjs.min.js?v=4.3.0"></script>
+<script src="/core/misc/announce.js?v=10.5.6"></script>
+<script src="/core/misc/message.js?v=10.5.6"></script>
+<script src="/profiles/ps/themes/ps_base/js/message.theme.js?tbgfm5"></script>
+<script src="/core/misc/ajax.js?v=10.5.6"></script>
+<script src="/themes/contrib/stable/js/ajax.js?v=10.5.6"></script>
+<script src="/modules/contrib/google_tag/js/gtag.ajax.js?tbgfm5"></script>
+<script src="/modules/contrib/linkpurpose/library/js/linkpurpose.min.js?tbgfm5"></script>
+<script src="/modules/contrib/linkpurpose/js/linkpurpose-drupal.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_access/js/restricted_link_indicator.js?tbgfm5"></script>
+<script src="/core/assets/vendor/js-cookie/js.cookie.min.js?v=3.0.5"></script>
+<script src="/profiles/ps/modules/custom/ps_alerts/js/alerts.js?tbgfm5"></script>
+<script src="/profiles/ps/themes/ps_base/js/back-to-top.js?tbgfm5"></script>
+<script src="/core/misc/active-link.js?v=10.5.6"></script>
+<script src="/profiles/ps/themes/ps_base/js/main-menu.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/search-terms-fragment-parser.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/collapse-text-search-terms-revealer.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/utils.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/columns.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/tables.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/enhanced-focus.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/focusable-hash-fixer.js?tbgfm5"></script>
+<script src="/profiles/ps/libraries/tabby/tabby.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/tabbed_layout_region.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/jump-link-menu.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/link_behavior.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/logout-link-username.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/random-image.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/ps_core/js/search-terms-highlighter.js?tbgfm5"></script>
+<script src="/libraries/aria-autocomplete/dist/aria-autocomplete.min.js?tbgfm5"></script>
+<script src="/profiles/ps/modules/custom/select2_simple/js/aria-autocomplete-behaviors.js?tbgfm5"></script>
+
+  </body>
+</html>
