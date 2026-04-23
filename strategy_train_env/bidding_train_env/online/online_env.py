@@ -388,6 +388,50 @@ class BiddingEnv(gym.Env):
         for dst, src in _alias.items():
             if src in state_dict:
                 state_dict[dst] = state_dict[src]
+
+        # --- market-regime derived features (Tier 2) ---
+        # All derived from self.history_info already populated by _update_history.
+        # No change to auction dynamics or the raw history cache.
+        def _slope(xs):
+            xs = np.asarray(xs, dtype=np.float32)
+            if xs.size < 2:
+                return 0.0
+            t = np.arange(xs.size, dtype=np.float32)
+            return float(np.polyfit(t, xs, 1)[0])
+
+        def _std(xs):
+            return float(np.std(xs)) if len(xs) >= 2 else 0.0
+
+        lwc_hist = self.history_info["least_winning_cost_mean"]
+        win_hist = self.history_info["bid_success_mean"]
+        pv_lwc_hist = self.history_info["pv_over_lwc_mean"]
+
+        lwc_last5 = lwc_hist[-5:]
+        lwc_last5_mean = safe_mean(lwc_last5)
+        lwc_last5_std = _std(lwc_last5)
+        lwc_hist_mean = safe_mean(lwc_hist)
+        lwc_hist_std = _std(lwc_hist)
+        lwc_now = lwc_hist[-1] if lwc_hist else 0.0
+
+        state_dict["lwc_trend_slope_last_five"] = _slope(lwc_last5)
+        state_dict["lwc_std_last_five"] = lwc_last5_std
+        state_dict["lwc_cv_last_five"] = (
+            lwc_last5_std / (lwc_last5_mean + self.EPS)
+        )
+        state_dict["lwc_z_last"] = (
+            (lwc_now - lwc_hist_mean) / (lwc_hist_std + self.EPS)
+        )
+        state_dict["win_rate_trend_slope_last_five"] = _slope(win_hist[-5:])
+        state_dict["pv_over_lwc_trend_slope_last_five"] = _slope(pv_lwc_hist[-5:])
+        state_dict["spend_velocity_residual"] = (
+            self.total_cost / max(self.total_budget, self.EPS)
+            - (1.0 - state_dict["time_left"])
+        )
+        cost_slot_1_last = state_dict.get("last_cost_slot_1_mean", 0.0)
+        cost_slot_3_last = state_dict.get("last_cost_slot_3_mean", 0.0)
+        state_dict["cost_slot_1_over_slot_3_last"] = (
+            cost_slot_1_last / (cost_slot_3_last + self.EPS)
+        )
         return state_dict
 
     def _get_state(self, state_dict):
