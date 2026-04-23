@@ -432,6 +432,72 @@ class BiddingEnv(gym.Env):
         state_dict["cost_slot_1_over_slot_3_last"] = (
             cost_slot_1_last / (cost_slot_3_last + self.EPS)
         )
+
+        # --- additional opponent-aware / market-regime features ---
+        lwc_01_hist = self.history_info["least_winning_cost_01_pct"]
+        lwc_10_hist = self.history_info["least_winning_cost_10_pct"]
+        pv_num_hist = self.history_info["pv_num"]
+        win_rate_hist = self.history_info["bid_success_mean"]
+        conv_mean_hist = self.history_info["conversion_mean"]
+        pvalues_hist = self.history_info["pvalues_mean"]
+        bid_mean_hist = self.history_info["bid_mean"]
+
+        lwc_01_last = lwc_01_hist[-1] if lwc_01_hist else 0.0
+        lwc_10_last = lwc_10_hist[-1] if lwc_10_hist else 0.0
+        lwc_mean_last = lwc_hist[-1] if lwc_hist else 0.0
+
+        # Distribution shape: where the bidding "whales" sit relative to the median.
+        state_dict["lwc_pct_gap_last"] = lwc_01_last - lwc_10_last
+        state_dict["lwc_top_to_mean_last"] = (
+            lwc_01_last / (lwc_mean_last + self.EPS)
+        )
+        # Trend in the right-tail spread: are whales pulling away?
+        gap_series = [lwc_01_hist[i] - lwc_10_hist[i]
+                      for i in range(max(0, len(lwc_01_hist) - 5), len(lwc_01_hist))]
+        state_dict["lwc_pct_gap_trend_last_five"] = _slope(gap_series)
+
+        # Opponent aggression proxies (don't see opponents, infer from outcomes).
+        last_pvalues_mean = pvalues_hist[-1] if pvalues_hist else 0.0
+        last_bid_mean = bid_mean_hist[-1] if bid_mean_hist else 0.0
+        state_dict["opponent_aggression_last"] = (
+            lwc_mean_last / (last_pvalues_mean + self.EPS)
+        )
+        state_dict["bid_competitiveness_last"] = (
+            last_bid_mean / (lwc_mean_last + self.EPS)
+        )
+
+        # Slot dynamics: whether top-vs-floor exposure pattern is shifting.
+        exp_top = state_dict.get("last_exposure_mean_slot_1", 0.0)
+        exp_floor = state_dict.get("last_exposure_mean_slot_3", 0.0)
+        state_dict["exposure_ratio_top_to_floor_last"] = (
+            exp_top / (exp_floor + self.EPS)
+        )
+        # Trend of slot-cost concentration over recent history.
+        cost_slot_1_hist = self.history_info["cost_mean_slot_1"]
+        cost_slot_3_hist = self.history_info["cost_mean_slot_3"]
+        ratio_series = [
+            cost_slot_1_hist[i] / (cost_slot_3_hist[i] + self.EPS)
+            for i in range(max(0, len(cost_slot_1_hist) - 5), len(cost_slot_1_hist))
+        ]
+        state_dict["slot_concentration_trend_last_five"] = _slope(ratio_series)
+
+        # Regime z-scores: how unusual is the current tick vs episode history.
+        pv_num_now = state_dict["current_pv_num"]
+        pv_num_mean = safe_mean(pv_num_hist)
+        pv_num_std = _std(pv_num_hist)
+        state_dict["pv_intensity_z_last"] = (
+            (pv_num_now - pv_num_mean) / (pv_num_std + self.EPS)
+        )
+        win_rate_now = win_rate_hist[-1] if win_rate_hist else 0.0
+        win_rate_mean = safe_mean(win_rate_hist)
+        win_rate_std = _std(win_rate_hist)
+        state_dict["win_rate_z_last"] = (
+            (win_rate_now - win_rate_mean) / (win_rate_std + self.EPS)
+        )
+
+        # Conversion-rate acceleration: regime shift in conversion productivity.
+        state_dict["conversion_rate_trend_last_five"] = _slope(conv_mean_hist[-5:])
+
         return state_dict
 
     def _get_state(self, state_dict):
