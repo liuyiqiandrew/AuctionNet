@@ -88,5 +88,16 @@
     "win_rate_trend_slope_last_five",
     "pv_over_lwc_trend_slope_last_five",
     "spend_velocity_residual",
-    "cost_slot_1_over_slot_3_last"
+    "cost_slot_1_over_slot_3_last",
+
+    "lwc_pct_gap_last",
+    "lwc_top_to_mean_last",
+    "lwc_pct_gap_trend_last_five",
+    "opponent_aggression_last",
+    "bid_competitiveness_last",
+    "exposure_ratio_top_to_floor_last",
+    "slot_concentration_trend_last_five",
+    "pv_intensity_z_last",
+    "win_rate_z_last",
+    "conversion_rate_trend_last_five"
 ]
