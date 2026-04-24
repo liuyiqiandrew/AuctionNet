@@ -1,0 +1,4 @@
+/home/bl0919/.conda/envs/auctionnet/lib/python3.14/site-packages/gymnasium/envs/registration.py:636: UserWarning: [33mWARN: Overriding environment BiddingEnv-v0 already in registry.[0m
+  logger.warn(f"Overriding environment {new_spec.id} already in registry.")
+/home/bl0919/.conda/envs/auctionnet/lib/python3.14/site-packages/gymnasium/envs/registration.py:636: UserWarning: [33mWARN: Overriding environment BiddingEnv-v0 already in registry.[0m
+  logger.warn(f"Overriding environment {new_spec.id} already in registry.")
