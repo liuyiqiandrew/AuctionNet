@@ -37,6 +37,7 @@ class BiddingEnv(gym.Env):
         budget_range: tuple | None = (400, 12000),
         target_cpa_range: tuple | None = (6, 12),
         deterministic_conversion: bool = False,
+        temporal_seq_len: int = 1,
         lambda_cpa: float = 0.0,
         seed: int = 0,
     ):
@@ -44,13 +45,18 @@ class BiddingEnv(gym.Env):
             raise ValueError("obs_keys and act_keys are required")
         self.obs_keys = obs_keys
         self.act_keys = act_keys
+        self.obs_dim = len(obs_keys)
+        self.temporal_seq_len = int(temporal_seq_len)
+        if self.temporal_seq_len < 1:
+            raise ValueError(f"temporal_seq_len must be >= 1, got {temporal_seq_len}")
+        self._state_history: list[np.ndarray] = []
         self.pvalues_key_pos = self.act_keys.index("pvalue")
         self.rwd_weights = rwd_weights if rwd_weights is not None else DEFAULT_RWD_WEIGHTS
         self.deterministic_conversion = deterministic_conversion
         self.lambda_cpa = float(lambda_cpa)
 
         self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(len(obs_keys),), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(self.obs_dim * self.temporal_seq_len,), dtype=np.float32
         )
         self.action_space = gym.spaces.Box(
             low=-10, high=10, shape=(len(act_keys),), dtype=np.float32
@@ -137,6 +143,7 @@ class BiddingEnv(gym.Env):
 
         self.episode_bids_df = self._get_episode_bids_df()
         self.episode_pvalues_df = self._get_episode_pvalues_df()
+        self._state_history = []
 
     def set_campaign(self, advertiser: int, budget: float, target_cpa: float, period: int | None = None):
         """For eval sweep mode: override sampled params without re-seeding RNG."""
@@ -387,7 +394,20 @@ class BiddingEnv(gym.Env):
         missing = [k for k in self.obs_keys if k not in state_dict]
         if missing:
             raise KeyError(f"obs_keys missing from state_dict: {missing}")
-        return np.asarray([state_dict[k] for k in self.obs_keys], dtype=np.float32)
+        base_state = np.asarray([state_dict[k] for k in self.obs_keys], dtype=np.float32)
+        return self._get_temporal_state(base_state)
+
+    def _get_temporal_state(self, base_state):
+        if self.temporal_seq_len == 1:
+            return base_state
+
+        self._state_history.append(base_state.copy())
+        if len(self._state_history) > self.temporal_seq_len:
+            self._state_history = self._state_history[-self.temporal_seq_len:]
+
+        pad_count = self.temporal_seq_len - len(self._state_history)
+        padded_history = [self._state_history[0]] * pad_count + self._state_history
+        return np.concatenate(padded_history).astype(np.float32)
 
     # ------------------------------------------------------------------ #
     # Data loading / episode slicing

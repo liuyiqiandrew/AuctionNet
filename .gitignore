@@ -7,6 +7,8 @@
 /data/
 /strategy_train_env/saved_model/
 /strategy_train_env/slurm_out/
+/strategy_train_env/slurm_jobs/
+/strategy_train_env/plot_ppo_sweep_curves.py
 /figures/
 *.sbatch*
 */*.sh
@@ -21,3 +23,4 @@ uv.lock
 AGENTS.md
 strategy_train_env/bidding_train_env/llm/models/
 strategy_train_env/outputs/
+/writeup/
