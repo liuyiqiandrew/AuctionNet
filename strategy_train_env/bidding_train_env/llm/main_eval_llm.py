@@ -48,6 +48,24 @@ LLM_OUTPUT_DIR = AUCTIONNET_ROOT / "output" / "llm"
 # absolute local path when `models/Qwen2.5-7B-Instruct/` exists.
 LLM_MODELS_DIR = Path(__file__).resolve().parent / "models"
 
+# Mirror of `build_rl_dataset.py::META_TAG` / `_with_meta`. At tick 0 the verl
+# training prompts carry a small JSON header — we must replicate it here so
+# eval prompts byte-match the validation rollouts the trainer optimized
+# against. Keep the formula for `seed` in sync with `build_rl_dataset.py::_build`.
+_AUCTION_META_TAG = "auction_meta"
+
+
+def _auction_meta_prefix(advertiser: int, budget: float, period: int, target_cpa: float) -> str:
+    meta = {
+        "advertiser": int(advertiser),
+        "budget": float(budget),
+        "period": int(period),
+        "seed": int(period) * 1000 + int(advertiser),  # matches build_rl_dataset.py
+        "target_cpa": float(target_cpa),
+    }
+    meta_json = json.dumps(meta, separators=(",", ":"), sort_keys=True)
+    return f"<{_AUCTION_META_TAG}>{meta_json}</{_AUCTION_META_TAG}>"
+
 
 def resolve_model_path(model: str, models_dir: Path) -> str:
     """Return a local snapshot path if one exists, else the original `model`.
@@ -92,6 +110,12 @@ def parse_args():
                    help="Disable reasoning-mode tokens by passing "
                         "chat_template_kwargs={'enable_thinking': False}. "
                         "Required for Qwen3/3.5 so `max_tokens` isn't consumed by <think>...</think>.")
+    p.add_argument("--no_auction_meta", action="store_true",
+                   help="Skip the <auction_meta>{...}</auction_meta> JSON header that "
+                        "build_rl_dataset.py injects into verl training prompts at tick 0. "
+                        "Default is to INCLUDE the header so eval prompts byte-match "
+                        "training-val prompts; pass this flag only for apples-to-apples "
+                        "comparison with a pipeline that never saw the header.")
 
     # Sampling
     p.add_argument("--temperature", type=float, default=0.0)
@@ -259,7 +283,26 @@ def main():
         chat_template_kwargs=({"enable_thinking": False} if args.no_thinking else {}),
     )
     agent = BiddingAgent(backend=backend, sampling=sampling, episode_length=EPISODE_LENGTH)
-    agent.reset(n_envs=n_envs)
+
+    # Mirror the <auction_meta> header that verl training prompts carry at tick 0.
+    # Skippable via --no_auction_meta for pipelines that never saw the header.
+    if args.no_auction_meta:
+        meta_prefixes: list[str] | None = None
+        print("[llm-eval] --no_auction_meta set; tick-0 user will NOT carry the JSON header",
+              flush=True)
+    else:
+        meta_prefixes = [
+            _auction_meta_prefix(
+                advertiser=int(row.advertiserNumber),
+                budget=float(row.budget),
+                period=int(args.eval_period),
+                target_cpa=float(row.CPAConstraint),
+            )
+            for _, row in cons.iterrows()
+        ]
+        print(f"[llm-eval] tick-0 <auction_meta> header enabled (example: {meta_prefixes[0]})",
+              flush=True)
+    agent.reset(n_envs=n_envs, first_user_prefix=meta_prefixes)
 
     # --- Output dir ---
     run_name = args.run_name or (
