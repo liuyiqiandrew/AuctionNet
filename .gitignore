@@ -24,3 +24,8 @@ AGENTS.md
 strategy_train_env/bidding_train_env/llm/models/
 strategy_train_env/outputs/
 /writeup/
+strategy_train_env/bidding_train_env/online/MARKET_REGIME_EXTENSION.md
+strategy_train_env/bidding_train_env/online/REWARD_SHAPING.md
+strategy_train_env/bidding_train_env/online/TEMPORAL_PPO_CHANGES.md
+strategy_train_env/bidding_train_env/online/WEIGHTED_PPO_CHANGES.md
+strategy_train_env/bidding_train_env/llm/README_verl.md

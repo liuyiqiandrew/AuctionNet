@@ -1,170 +1,286 @@
 # Online PPO for AuctionNet
 
-Minimal `stable_baselines3` PPO pipeline over a replay-based `BiddingEnv`.
-Train on periods 7–26; evaluate on period 27.
+Replay-based `stable_baselines3` PPO training for AuctionNet bidding. Train on
+periods 7-26 and evaluate on period 27. All commands below are run from
+`AuctionNet/strategy_train_env/`.
 
 ## Layout
 
-```
+```text
 online/
-  online_env.py        # BiddingEnv (gym.Env) + registration + EnvironmentFactory
-  online_trainer.py    # OnlineTrainer + ALGO_CLASS_DICT (drop-in for custom variants)
-  callbacks.py         # CustomCheckpointCallback, JsonRolloutCallback
-  data_generator.py    # aggregation helpers (raw parquet -> pvalues/bids/constraints)
-  prepare_data.py      # CLI wrapping data_generator
-  main_train_ppo.py    # training entry point
-  main_eval_ppo.py     # evaluation entry point (random + sweep modes)
-  temporal_policy.py   # optional GRU feature extractor for temporal PPO
-  definitions.py       # paths, PPO defaults, HISTORY/NO_HISTORY keys, BC_RANGES
-  helpers.py           # safe_mean/max, get_last_checkpoint, get_model_and_env_path
+  prepare_data.py      # raw parquet -> replay-ready pvalues/bids/constraints
+  online_env.py        # BiddingEnv, WeightedBiddingEnv dispatch, observation logic
+  main_train_ppo.py    # PPO training entry point
+  main_eval_ppo.py     # random and sweep evaluation entry point
+  temporal_policy.py   # optional residual-GRU feature extractor
+  score_weights.py     # score-weighted advertiser sampling helpers
+  weighted_env.py      # WeightedBiddingEnv reset-time advertiser sampler
   configs/
-    obs_16_keys.json   # default observation schema
-    obs_60_keys.json   # richer observation schema
-    act_1_key.json     # ["pvalue"] log-bid-coefficient action
+    obs_16_keys.json
+    obs_60_keys.json
+    obs_market_regime_v1.json
+    act_1_key.json
 ```
 
-All commands below are run from `AuctionNet/strategy_train_env/`.
-
-## 1. Prepare data (once)
-
-Aggregate raw per-impression parquets into per-timestep pvalues + bids + per-advertiser constraints:
+## 1. Prepare Data
 
 ```bash
 python bidding_train_env/online/prepare_data.py \
-    --first_period 7 --last_period 27
+  --first_period 7 --last_period 27
 ```
 
-Writes to `AuctionNet/strategy_train_env/data/traffic/online_rl_data/period-{N}_{pvalues,bids,constraints}.parquet`
-(63 files for periods 7..27).
+This writes replay files to
+`data/traffic/online_rl_data/period-{N}_{pvalues,bids,constraints}.parquet`.
 
-## 2. Train
+## 2. Train and Evaluate
+
+Training outputs are written to
+`../output/online/training/ongoing/{out_prefix}ppo_seed_{seed}{out_suffix}/`.
+Evaluation outputs are written to `../output/online/testing/{run_name}/`.
+
+`main_eval_ppo.py` supports:
+
+- `random`: sampled campaigns from `--bc_range`
+- `sweep`: one deterministic rollout per advertiser in `--eval_period`
+- `both`: run both modes
+
+### Baseline PPO
+
+Train:
 
 ```bash
 python bidding_train_env/online/main_train_ppo.py \
-    --num_envs 20 --num_steps 10000000 --batch_size 512 \
-    --seed 0 --bc_range default \
-    --obs_type obs_16_keys --act_type act_1_key \
-    --learning_rate 2e-5 --save_every 10000 \
-    --out_prefix 001_ --out_suffix _ppo_default_obs16
+  --num_envs 20 \
+  --num_steps 10000000 \
+  --batch_size 512 \
+  --seed 0 \
+  --bc_range default \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --learning_rate 2e-5 \
+  --save_every 100000 \
+  --out_prefix 001_ \
+  --out_suffix _ppo_default_obs16
 ```
 
-Key flags:
+Evaluate:
 
-| Flag | Meaning |
-|------|---------|
-| `--num_envs 20` | one `SubprocVecEnv` worker per period 7..26 (add `--use_dummy_vec_env` for debugging) |
-| `--bc_range {dense,sparse,default}` | budget/target_cpa sampling range. `default` uses each advertiser's raw `(budget, CPAConstraint)` |
-| `--obs_type {obs_16_keys,obs_60_keys}` | which observation schema (default: 16) |
-| `--dense_weight / --sparse_weight` | per-step vs end-of-episode reward mix (default 1.0 / 0.0) |
-| `--deterministic_conversion` | disable stochastic Bernoulli(N(pV, pVSigma)) sampling |
-| `--temporal_seq_len K` | optional state-only temporal PPO; stack last K observations and encode them with a GRU |
-| `--temporal_hidden_dim N` | hidden dimension for the temporal GRU feature extractor (default 64) |
-| `--save_every N` | checkpoint every N env steps |
-| `--load_path DIR --checkpoint_num K` | resume from checkpoint K in DIR (or latest if K omitted) |
-
-Outputs land in `AuctionNet/output/online/training/ongoing/{out_prefix}ppo_seed_{seed}{out_suffix}/`:
-
-```
-args.json  env_config.json  model_config.json  main_train_ppo.py (snapshot)
-rl_model_{N}_steps.zip  +  rl_model_vecnormalize_{N}_steps.pkl
-final_model.zip         +  final_vecnormalize.pkl
+```bash
+python bidding_train_env/online/main_eval_ppo.py \
+  --load_path ../output/online/training/ongoing/001_ppo_seed_0_ppo_default_obs16 \
+  --eval_mode both \
+  --n_eval_episodes 100 \
+  --eval_period 27 \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --bc_range default \
+  --rl_data_dir data/traffic/online_rl_data
 ```
 
-Training auto-resumes from the latest checkpoint in its own log dir if interrupted.
+Base arguments:
 
-### Optional temporal PPO
+- `--num_envs 20`: train one vectorized environment per period, starting at
+  `--first_period 7`, so the default covers periods 7-26.
+- `--bc_range default`: use each advertiser's raw budget and CPA constraint.
+- `--obs_type`: choose the observation schema JSON in `online/configs/`.
+- `--act_type act_1_key`: one log bid coefficient action.
+- `--dense_weight` / `--sparse_weight`: per-step vs terminal reward mix,
+  defaulting to `1.0 / 0.0`.
+- `--load_path`: training run directory containing checkpoints or
+  `final_model.zip` and `final_vecnormalize.pkl`.
 
-Temporal PPO is an opt-in residual-GRU encoder over the last `K` PPO
-observations. The feature list is always the PPO observation schema selected by
-`--obs_type`, for example `obs_16_keys` or `obs_60_keys`; it does not rebuild the
-IQL testing-state feature list. The IQL branch only supplies the architecture
-pattern: GRU history encoding plus a residual latest-observation path and
-LayerNorm. Temporal mode uses separate actor/value GRU feature extractors to
-mirror the residual-GRU IQL phase as closely as standard SB3 PPO allows.
+### Temporal PPO
 
-This mode does not use IQL objectives, offline replay buffers, or
-transition-v1/v2 tokens.
+Temporal PPO keeps PPO unchanged but returns the last `K` selected observations
+as a flattened stack and encodes them with a residual GRU feature extractor.
+
+Train:
 
 ```bash
 python bidding_train_env/online/main_train_ppo.py \
-    --num_envs 20 --num_steps 10000000 --batch_size 512 \
-    --seed 0 --bc_range dense \
-    --obs_type obs_16_keys --act_type act_1_key \
-    --learning_rate 2e-5 --save_every 10000 \
-    --out_prefix 001_ --out_suffix _ppo_dense_obs16_temporal8 \
-    --device cpu \
-    --temporal_seq_len 8 --temporal_hidden_dim 64
+  --num_envs 20 \
+  --num_steps 10000000 \
+  --batch_size 512 \
+  --seed 0 \
+  --bc_range default \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --learning_rate 2e-5 \
+  --save_every 100000 \
+  --out_prefix 001_temporal8_ \
+  --out_suffix _ppo_default_obs16 \
+  --temporal_seq_len 8 \
+  --temporal_hidden_dim 64
 ```
 
-## 3. Evaluate
+Evaluate:
 
 ```bash
 python bidding_train_env/online/main_eval_ppo.py \
-    --load_path ../output/online/training/ongoing/001_ppo_seed_0_ppo_default_obs16 \
-    --eval_mode both --n_eval_episodes 100 \
-    --obs_type obs_16_keys --bc_range default
+  --load_path ../output/online/training/ongoing/001_temporal8_ppo_seed_0_ppo_default_obs16 \
+  --eval_mode both \
+  --n_eval_episodes 100 \
+  --eval_period 27 \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --bc_range default \
+  --temporal_seq_len 8 \
+  --rl_data_dir data/traffic/online_rl_data
 ```
 
-For temporal checkpoints, pass the same observation schema and sequence length
-used during training:
+Temporal-specific arguments:
 
-```bash
-python bidding_train_env/online/main_eval_ppo.py \
-    --load_path ../output/online/training/ongoing/001_ppo_seed_0_ppo_dense_obs16_temporal8 \
-    --eval_mode both --n_eval_episodes 100 \
-    --obs_type obs_16_keys --bc_range dense \
-    --temporal_seq_len 8
-```
+- `--temporal_seq_len K`: stack the last `K` PPO observations; default `1`
+  disables temporal mode.
+- `--temporal_hidden_dim N`: GRU hidden dimension, default `64`.
+- `--no_temporal_residual_latest_state`: use only the GRU hidden state instead
+  of concatenating the latest observation.
+- Evaluation must use the same `--obs_type` and `--temporal_seq_len` as
+  training.
 
-`--eval_mode`:
-- `random`: N random `(advertiser, budget, target_cpa)` rollouts per `--bc_range`.
-- `sweep`:  one deterministic rollout per advertiser in `--eval_period` using raw `(budget, CPAConstraint)`.
-- `both`:   runs both, writes two JSONs.
+### Score-Weighted PPO
 
-Results land in `AuctionNet/output/online/testing/{run_name}/results_{mode}_{timestamp}.json`
-with per-episode rows plus aggregated `score`, `cost_over_budget`, `target_cpa_over_cpa`, `conversions`.
+Score-weighted PPO keeps the policy, action, reward, and eval flow unchanged,
+but samples advertisers at `env.reset()` from
+`alpha * softmax(score / temperature) + (1 - alpha) * uniform`, where score is
+the logged-policy NeurIPS score computed from raw period parquets.
 
-## Smoke test
-
-```bash
-python bidding_train_env/online/main_train_ppo.py \
-    --num_envs 2 --num_steps 5000 --batch_size 64 --n_rollout_steps 64 \
-    --save_every 1000 --device cpu --bc_range default \
-    --use_dummy_vec_env --out_prefix smoke_
-
-python bidding_train_env/online/main_eval_ppo.py \
-    --load_path ../output/online/training/ongoing/smoke_ppo_seed_0 \
-    --eval_mode random --n_eval_episodes 5
-```
-
-Temporal smoke test:
+Train:
 
 ```bash
 python bidding_train_env/online/main_train_ppo.py \
-    --num_envs 2 --num_steps 5000 --batch_size 64 --n_rollout_steps 64 \
-    --save_every 1000 --device cpu --bc_range dense \
-    --use_dummy_vec_env --out_prefix smoke_temporal_ \
-    --temporal_seq_len 4 --temporal_hidden_dim 32
-
-python bidding_train_env/online/main_eval_ppo.py \
-    --load_path ../output/online/training/ongoing/smoke_temporal_ppo_seed_0 \
-    --eval_mode random --n_eval_episodes 5 \
-    --temporal_seq_len 4
+  --num_envs 20 \
+  --num_steps 10000000 \
+  --batch_size 512 \
+  --seed 0 \
+  --bc_range default \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --learning_rate 2e-5 \
+  --save_every 100000 \
+  --out_prefix 003_t30_ \
+  --out_suffix _ppo_default_obs16 \
+  --weighted-sampling \
+  --temperature 30 \
+  --alpha 0.9 \
+  --raw_data_dir data/traffic
 ```
 
-## Adding a new algorithm
+Evaluate:
 
-Register it in `definitions.py::ALGO_CLASS_DICT` and pass `--algo <name>` to
-`main_train_ppo.py`. The class must be `stable_baselines3`-compatible (same
-`learn` / `load` / `save` / `predict` API as `PPO`).
+```bash
+python bidding_train_env/online/main_eval_ppo.py \
+  --load_path ../output/online/training/ongoing/003_t30_ppo_seed_0_ppo_default_obs16 \
+  --eval_mode both \
+  --n_eval_episodes 100 \
+  --eval_period 27 \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --bc_range default \
+  --rl_data_dir data/traffic/online_rl_data
+```
 
-## Notes
+Weighted-specific arguments:
 
-- Action `[-10, 10]` is a log-bid-coefficient; `bid = exp(action) * pvalue * target_cpa`.
-- Conversions are stochastic by default: `p ~ clip(N(pValue, pValueSigma), 0, 1)`,
-  then `conversion = Bernoulli(p) * bid_exposed`. Both `pValue` and `pValueSigma`
-  matter.
-- Over-cost correction randomly drops winning bids until step cost ≤ remaining budget.
-- PPO hyperparams default to known-stable values from the reference implementation
-  (`clip_range=0.3`, `lr=2e-5` linear, `vf_coef=0.5`, `ent_coef=3e-6`,
-  `max_grad_norm=0.7`, `gae_lambda=0.9`, `n_epochs=10`, `log_std_init=0.0`).
+- `--weighted-sampling`: switch reset-time advertiser sampling from uniform to
+  score-weighted.
+- `--temperature`: softmax temperature; lower values make sampling sharper.
+- `--alpha`: mixture weight between score-weighted sampling and a uniform
+  floor.
+- `--raw_data_dir`: raw `period-{N}.parquet` directory used to compute scores.
+- Evaluation uses the normal PPO evaluator; no weighted-specific eval flag is
+  needed.
+
+### Reward-Shaped PPO
+
+Reward-shaped PPO adds a per-step CPA overspend penalty to the dense reward:
+`reward -= lambda_cpa * max(0, step_cost - target_cpa * step_conversions)`.
+`lambda_cpa=0.0` reproduces baseline PPO.
+
+Train:
+
+```bash
+python bidding_train_env/online/main_train_ppo.py \
+  --num_envs 20 \
+  --num_steps 10000000 \
+  --batch_size 512 \
+  --seed 0 \
+  --bc_range default \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --learning_rate 2e-5 \
+  --save_every 100000 \
+  --out_prefix 002_lambda0.5_ \
+  --out_suffix _ppo_default_obs16 \
+  --lambda_cpa 0.5
+```
+
+Evaluate:
+
+```bash
+python bidding_train_env/online/main_eval_ppo.py \
+  --load_path ../output/online/training/ongoing/002_lambda0.5_ppo_seed_0_ppo_default_obs16 \
+  --eval_mode both \
+  --n_eval_episodes 100 \
+  --eval_period 27 \
+  --obs_type obs_16_keys \
+  --act_type act_1_key \
+  --bc_range default \
+  --rl_data_dir data/traffic/online_rl_data
+```
+
+Reward-shaping-specific arguments:
+
+- `--lambda_cpa`: penalty weight for per-step CPA overspend. Sweep values such
+  as `0.0`, `0.5`, `1.0`, and `2.0` against a matched `bc_range` baseline.
+- Evaluation uses the normal PPO evaluator; compare `sweep` `score`,
+  `cost_over_budget`, and `target_cpa_over_cpa`.
+- If all shaped runs collapse, try smaller λ values before changing other PPO
+  hyperparameters.
+
+### Market-Regime PPO
+
+Market-regime PPO changes only the observation schema. `obs_market_regime_v1`
+extends `obs_60_keys` with CPA trend, slot exposure/win counts, cumulative
+episode quantities, and derived opponent/regime features from `history_info`.
+
+Train:
+
+```bash
+python bidding_train_env/online/main_train_ppo.py \
+  --num_envs 20 \
+  --num_steps 5000000 \
+  --batch_size 512 \
+  --seed 0 \
+  --bc_range default \
+  --obs_type obs_market_regime_v1 \
+  --act_type act_1_key \
+  --learning_rate 1e-4 \
+  --save_every 1000000 \
+  --out_prefix 022_full_obs_market_regime_v1_ \
+  --out_suffix _5m_all \
+  --rl_data_dir data/traffic/online_rl_data
+```
+
+Evaluate:
+
+```bash
+python bidding_train_env/online/main_eval_ppo.py \
+  --load_path ../output/online/training/ongoing/022_full_obs_market_regime_v1_ppo_seed_0_5m_all \
+  --eval_mode both \
+  --n_eval_episodes 100 \
+  --eval_period 27 \
+  --obs_type obs_market_regime_v1 \
+  --act_type act_1_key \
+  --bc_range default \
+  --temporal_seq_len 1 \
+  --rl_data_dir data/traffic/online_rl_data
+```
+
+Market-regime-specific arguments:
+
+- `--obs_type obs_market_regime_v1`: selects the 98-key market-regime
+  observation vector.
+- No action, reward, reset, bidding, or evaluation logic changes are required.
+- Compare against an `obs_60_keys` baseline at the same step count, preferably
+  using `sweep` metrics on period 27.
