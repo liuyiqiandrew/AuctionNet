@@ -162,7 +162,17 @@ def main():
     vec_env = VecNormalize.load(str(vnorm_pkl), vec_env)
     vec_env.training = False
     vec_env.norm_reward = False
-    model = PPO.load(str(model_zip), env=vec_env)
+    # Replace the cloudpickled training schedules. The training launcher saved
+    # `learning_rate` as a closure (`lambda x: x * args.learning_rate`); on
+    # newer Python / cloudpickle / torch builds the reconstituted code object
+    # segfaults when called inside `_setup_model`. Eval doesn't use these
+    # schedules, so a constant-zero stub is safe.
+    custom_objects = {
+        "learning_rate": 0.0,
+        "lr_schedule": lambda _: 0.0,
+        "clip_range": lambda _: 0.0,
+    }
+    model = PPO.load(str(model_zip), env=vec_env, custom_objects=custom_objects)
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     out_dir = Path(OUTPUT_DIR) / "testing" / load_path.name

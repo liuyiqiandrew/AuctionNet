@@ -437,7 +437,10 @@ except gym.error.Error:
 class EnvironmentFactory:
     """Static factory so callers can write `EnvironmentFactory.create(env_name="BiddingEnv", ...)`."""
 
-    ENV_NAME_TO_ID = {"BiddingEnv": "BiddingEnv-v0"}
+    ENV_NAME_TO_ID = {
+        "BiddingEnv": "BiddingEnv-v0",
+        "WeightedBiddingEnv": "WeightedBiddingEnv-v0",
+    }
 
     @staticmethod
     def create(env_name: str, **kwargs):

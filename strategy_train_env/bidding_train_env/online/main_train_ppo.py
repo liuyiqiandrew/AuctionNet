@@ -1,13 +1,25 @@
 """Online PPO training entry point.
 
-Example (from AuctionNet/strategy_train_env/):
+Uniform advertiser sampling by default. Pass --weighted-sampling to sample
+advertisers in env.reset() by historical NeurIPS score under the logged policy
+(softmax over per-advertiser score, mixed with a uniform floor).
+
+Example, uniform (from AuctionNet/strategy_train_env/):
     python bidding_train_env/online/main_train_ppo.py \
         --num_envs 20 --num_steps 10_000_000 --batch_size 512 \
         --seed 0 --bc_range default --out_prefix 001_ \
         --obs_type obs_16_keys --learning_rate 1e-4 --save_every 10000
+
+Example, score-weighted:
+    python bidding_train_env/online/main_train_ppo.py \
+        --num_envs 20 --num_steps 10_000_000 --batch_size 512 \
+        --seed 0 --bc_range default --out_prefix 003_t30_ \
+        --obs_type obs_16_keys --learning_rate 2e-5 --save_every 10000 \
+        --weighted-sampling --temperature 30 --alpha 0.9
 """
 
 import argparse
+import functools
 import json
 import os
 import shutil
@@ -31,6 +43,7 @@ from bidding_train_env.online.definitions import (
     BC_RANGES,
     INFO_KEYWORDS,
     OUTPUT_DIR,
+    RAW_DATA_DIR,
     RL_DATA_DIR,
     load_act_keys,
     load_obs_keys,
@@ -38,6 +51,12 @@ from bidding_train_env.online.definitions import (
 from bidding_train_env.online.helpers import get_model_and_env_path
 from bidding_train_env.online.online_env import EnvironmentFactory
 from bidding_train_env.online.online_trainer import OnlineTrainer
+from bidding_train_env.online.score_weights import (
+    compute_advertiser_weights,
+    compute_period_advertiser_scores,
+    effective_sample_size,
+)
+from bidding_train_env.online.weighted_env import WeightedBiddingEnv  # noqa: F401  (registers WeightedBiddingEnv-v0)
 
 
 def parse_args():
@@ -49,6 +68,8 @@ def parse_args():
     p.add_argument("--first_period", type=int, default=7)
     p.add_argument("--num_envs", type=int, default=20, help="one env per period starting at --first_period")
     p.add_argument("--rl_data_dir", type=str, default=str(RL_DATA_DIR))
+    p.add_argument("--raw_data_dir", type=str, default=str(RAW_DATA_DIR),
+                   help="raw period parquets (used to compute score weights). only consulted when --weighted-sampling.")
 
     # Schedule
     p.add_argument("--num_steps", type=int, default=10_000_000)
@@ -88,32 +109,75 @@ def parse_args():
     p.add_argument("--use_dummy_vec_env", action="store_true",
                    help="use DummyVecEnv instead of SubprocVecEnv (slower but easier to debug)")
 
+    # Score-weighted advertiser sampling (off by default).
+    p.add_argument("--weighted-sampling", action="store_true",
+                   help="sample advertisers in env.reset() by historical NeurIPS score "
+                        "instead of uniformly. off by default.")
+    p.add_argument("--temperature", type=float, default=10.0,
+                   help="softmax temperature on per-advertiser score (lower = sharper). "
+                        "only used when --weighted-sampling.")
+    p.add_argument("--alpha", type=float, default=0.9,
+                   help="mix weight: alpha*softmax + (1-alpha)*uniform. "
+                        "only used when --weighted-sampling.")
+
     return p.parse_args()
+
+
+def _linear_lr_schedule(initial_value: float, progress_remaining: float) -> float:
+    """SB3-compatible linear-decay LR schedule.
+
+    Defined at module level (not a closure) so cloudpickle serializes it by
+    qualified-name reference instead of reconstructing a code object. We pair
+    it with `functools.partial` to bake in `initial_value`, which is also
+    cloudpickle-safe. The previous inline `lambda x: x * args.learning_rate`
+    was a closure and segfaulted in `PPO.load` on newer Python / cloudpickle
+    builds when SB3 invoked the reconstituted code object.
+    """
+    return progress_remaining * initial_value
 
 
 def build_env_configs(args, obs_keys, act_keys):
     bc = BC_RANGES[args.bc_range]
     rl_data_dir = Path(args.rl_data_dir)
+    raw_data_dir = Path(args.raw_data_dir) if args.weighted_sampling else None
     cfgs = []
+    weight_summary = []
     for i in range(args.num_envs):
         period = args.first_period + i
-        cfgs.append(
-            dict(
-                env_name="BiddingEnv",
-                pvalues_df_path=str(rl_data_dir / f"period-{period}_pvalues.parquet"),
-                bids_df_path=str(rl_data_dir / f"period-{period}_bids.parquet"),
-                constraints_df_path=str(rl_data_dir / f"period-{period}_constraints.parquet"),
-                obs_keys=obs_keys,
-                act_keys=act_keys,
-                rwd_weights={"dense": args.dense_weight, "sparse": args.sparse_weight},
-                budget_range=bc["budget_range"],
-                target_cpa_range=bc["target_cpa_range"],
-                deterministic_conversion=args.deterministic_conversion,
-                lambda_cpa=args.lambda_cpa,
-                seed=args.seed + i,
-            )
+        cfg = dict(
+            env_name="WeightedBiddingEnv" if args.weighted_sampling else "BiddingEnv",
+            pvalues_df_path=str(rl_data_dir / f"period-{period}_pvalues.parquet"),
+            bids_df_path=str(rl_data_dir / f"period-{period}_bids.parquet"),
+            constraints_df_path=str(rl_data_dir / f"period-{period}_constraints.parquet"),
+            obs_keys=obs_keys,
+            act_keys=act_keys,
+            rwd_weights={"dense": args.dense_weight, "sparse": args.sparse_weight},
+            budget_range=bc["budget_range"],
+            target_cpa_range=bc["target_cpa_range"],
+            deterministic_conversion=args.deterministic_conversion,
+            lambda_cpa=args.lambda_cpa,
+            seed=args.seed + i,
         )
-    return cfgs
+        if args.weighted_sampling:
+            scores_df = compute_period_advertiser_scores(period, raw_data_dir)
+            advertiser_list = sorted(scores_df["advertiserNumber"].astype(float).tolist())
+            weights = compute_advertiser_weights(
+                period=period,
+                raw_data_dir=raw_data_dir,
+                temperature=args.temperature,
+                alpha=args.alpha,
+                advertiser_list=advertiser_list,
+            )
+            cfg["advertiser_weights"] = weights.tolist()
+            weight_summary.append({
+                "period": period,
+                "n_advertisers": len(advertiser_list),
+                "ess": effective_sample_size(weights),
+                "max_weight": float(weights.max()),
+                "min_weight": float(weights.min()),
+            })
+        cfgs.append(cfg)
+    return cfgs, weight_summary
 
 
 def make_vec_env(cfgs, log_dir, use_dummy=False):
@@ -141,18 +205,26 @@ def main():
     with open(log_dir / "args.json", "w") as f:
         json.dump(vars(args), f, indent=2)
 
-    cfgs = build_env_configs(args, obs_keys, act_keys)
+    cfgs, weight_summary = build_env_configs(args, obs_keys, act_keys)
     # Dump one env_config so it is obvious what data each worker sees.
     serializable = {k: v for k, v in cfgs[0].items()}
     with open(log_dir / "env_config.json", "w") as f:
         json.dump(serializable, f, indent=2, default=lambda _: "<ns>")
+
+    if args.weighted_sampling:
+        with open(log_dir / "weight_summary.json", "w") as f:
+            json.dump(weight_summary, f, indent=2)
+        print("[weighted] per-period sampling weight summary:")
+        for s in weight_summary:
+            print(f"  period {s['period']:>2}: ess={s['ess']:.1f}/{s['n_advertisers']}  "
+                  f"max={s['max_weight']:.4f}  min={s['min_weight']:.4f}")
 
     model_cfg = dict(
         policy="MlpPolicy",
         device=args.device,
         batch_size=args.batch_size,
         n_steps=args.n_rollout_steps,
-        learning_rate=lambda x: x * args.learning_rate,  # linear schedule
+        learning_rate=functools.partial(_linear_lr_schedule, args.learning_rate),  # linear schedule, pickle-safe
         ent_coef=args.ent_coef,
         vf_coef=args.vf_coef,
         clip_range=args.clip_range,

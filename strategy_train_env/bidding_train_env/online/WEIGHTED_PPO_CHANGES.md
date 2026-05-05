@@ -25,6 +25,10 @@ High-scoring advertisers (under the logged policy) are sampled more often during
 training. This is intended as a form of difficulty / informative-trajectory
 weighting analogous to prioritized sampling in offline RL.
 
+Both code paths live in a single launcher (`main_train_ppo.py`). Uniform
+sampling is the default; pass `--weighted-sampling` to switch to the
+score-weighted path.
+
 ## What Stayed The Same
 
 - PPO algorithm, hyperparameters, checkpoint format, and evaluation flow are
@@ -59,35 +63,53 @@ Computes per-advertiser sampling weights for a single period.
 vector instead of `np_random.choice` uniform. Validates that the weight vector
 length matches `advertiser_list` length. Registers as `WeightedBiddingEnv-v0`.
 
-### `main_train_ppo_weighted.py`
+## Files Modified
 
-Launcher. Mirrors `main_train_ppo.py` with two added flags:
+### `main_train_ppo.py`
+
+Folded the previously separate `main_train_ppo_weighted.py` into the main
+launcher. Three flags gate the score-weighted path:
 
 ```bash
---temperature   # softmax temperature on per-advertiser score (lower = sharper)
---alpha         # mix weight: alpha * softmax + (1 - alpha) * uniform
+--weighted-sampling   # off by default; turn on to use score-weighted sampling
+--temperature         # softmax temperature on per-advertiser score (lower = sharper)
+--alpha               # mix weight: alpha * softmax + (1 - alpha) * uniform
+--raw_data_dir        # raw period parquets used to compute scores; defaults to RAW_DATA_DIR
 ```
 
-At startup it computes per-period weights via `compute_advertiser_weights`,
-passes them into each `WeightedBiddingEnv` via `gym.make(...)`, and logs an
-ESS summary per period to `weight_summary.json`. Everything else (vec-env
-construction, callbacks, checkpoints, `VecNormalize`) is identical to
-`main_train_ppo.py`.
+When `--weighted-sampling` is set, the launcher computes per-period weights via
+`compute_advertiser_weights`, passes them into each `WeightedBiddingEnv` via the
+shared `EnvironmentFactory`, and logs an ESS summary per period to
+`weight_summary.json`. When the flag is off, behavior is identical to the
+original uniform-sampling launcher (no weights computed, no
+`weight_summary.json` written, `BiddingEnv` is used). Everything else (PPO
+hyperparams, vec-env construction, callbacks, checkpoints, `VecNormalize`) is
+shared between the two code paths.
+
+### `online_env.py`
+
+`EnvironmentFactory.ENV_NAME_TO_ID` was extended to register
+`WeightedBiddingEnv -> WeightedBiddingEnv-v0`, so a single
+`EnvironmentFactory.create(env_name=..., **cfg)` call dispatches both env
+classes uniformly.
 
 ## How To Run
 
 Local smoke (CPU):
 
 ```bash
-python bidding_train_env/online/main_train_ppo_weighted.py \
+python bidding_train_env/online/main_train_ppo.py \
     --num_envs 20 --num_steps 200000 --batch_size 512 \
     --seed 0 --bc_range default \
     --obs_type obs_16_keys --act_type act_1_key \
     --learning_rate 2e-5 --save_every 10000 \
-    --temperature 30 --alpha 0.9 \
+    --weighted-sampling --temperature 30 --alpha 0.9 \
     --out_prefix 003_t30_ --out_suffix _ppo_default_obs16 \
     --device cpu --use_dummy_vec_env
 ```
+
+Omit `--weighted-sampling` (and the `--temperature` / `--alpha` knobs) to fall
+back to the uniform-sampling baseline path.
 
 Full 10M-step run on Adroit:
 
