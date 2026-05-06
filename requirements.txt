@@ -1,9 +1,0 @@
-numpy
-pandas
-torch
-gin
-gin_config
-matplotlib
-scipy
-psutil
-func_timeout
