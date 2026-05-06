@@ -43,7 +43,7 @@ llm/
 ├── backends.py           # LLMBackend protocol + VLLMOfflineBackend + VLLMServerBackend
 ├── agent.py              # BiddingAgent — backend-agnostic multi-env chat loop
 ├── main_eval_llm.py      # CLI: tick-synchronous batched rollout for one period
-├── main_verl_train.sh    # Slurm entry point for VeRL GRPO + LoRA training
+├── main_verl_train.sh    # Bash entry point for VeRL GRPO + LoRA training
 └── verl/
     ├── bidding_agent_loop.py     # VeRL rollout adapter for 48-tick episodes
     ├── auction_reward_manager.py # rollout metrics → token-level reward tensor
@@ -164,7 +164,7 @@ evaluation-time action contracts remain identical.
 
 ### Dataset
 
-Build the train/validation parquet rows. The Slurm launcher below also
+Build the train/validation parquet rows. The bash launcher below also
 materializes them on first run if missing:
 
 ```bash
@@ -176,10 +176,10 @@ Outputs are written to `data/llm/verl/{train,val}.parquet`.
 ### Launching Training
 
 ```bash
-sbatch llm/main_verl_train.sh
+bash llm/main_verl_train.sh
 ```
 
-The Slurm script activates the `verl` conda environment, sets the offline
+The bash script activates the `verl` conda environment, sets the offline
 Hugging Face flags, exports `PYTHONPATH`, builds any missing dataset
 parquets, and then launches:
 
@@ -189,8 +189,8 @@ python -u -m llm.verl.launch_train \
     --config-name=qwen3_8b_grpo_lora
 ```
 
-Training logs go to `slurm_out/llm_rl_p7_26-<jobid>.out`; checkpoints and
-rollout traces go to `output/llm/training/qwen3_8b_grpo_lora/`.
+Training logs stream to stdout/stderr; redirect them if you want a log file.
+Checkpoints and rollout traces go to `output/llm/training/qwen3_8b_grpo_lora/`.
 
 For a config-only smoke check on a login node:
 

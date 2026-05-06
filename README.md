@@ -165,9 +165,9 @@ Output parquets are written to `data/llm/verl/`.
 ### Launch VeRL GRPO + LoRA Training
 
 ```bash
-sbatch llm/main_verl_train.sh
+bash llm/main_verl_train.sh
 ```
 
-The Slurm script wraps the VeRL launcher with the project's GRPO + LoRA
+The bash script wraps the VeRL launcher with the project's GRPO + LoRA
 configuration. See [`llm/README.md`](llm/README.md) for model snapshot setup, vLLM
 server usage, prompt/action contract details, and training-time tuning notes.

@@ -1,28 +1,32 @@
-#!/bin/bash
-#SBATCH --job-name=llm_rl_p7_26
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=180G
-#SBATCH --gres=gpu:1
-#SBATCH --partition=ailab
-#SBATCH --time=48:00:00
-#SBATCH --output=slurm_out/llm_rl_p7_26-%j.out
-#SBATCH --error=slurm_out/llm_rl_p7_26-%j.err
-#SBATCH --account=chij
+#!/usr/bin/env bash
 
 # VeRL GRPO + LoRA finetune of Qwen3-8B on AuctionNet periods 7..26.
 # Val is period 27 (same data main_eval_llm.py evaluates on).
+#
+# Run from anywhere:
+#   bash llm/main_verl_train.sh
+#
+# By default this activates the `verl` conda environment. Override with
+# CONDA_ENV=<name>, or set SKIP_CONDA_ACTIVATE=1 if your shell is already in the
+# right environment.
 
-set -eo pipefail
+set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 cd "${REPO_ROOT}"
-mkdir -p slurm_out
 
-module load anaconda3/2025.6
-conda activate verl
+if [ "${SKIP_CONDA_ACTIVATE:-0}" != "1" ]; then
+    if command -v conda >/dev/null 2>&1; then
+        CONDA_BASE=$(conda info --base)
+        # shellcheck source=/dev/null
+        source "${CONDA_BASE}/etc/profile.d/conda.sh"
+        conda activate "${CONDA_ENV:-verl}"
+    else
+        echo "[warn] conda not found; continuing with current Python environment." >&2
+        echo "[warn] set SKIP_CONDA_ACTIVATE=1 to suppress this warning." >&2
+    fi
+fi
 
 # Compute nodes have no internet.
 export HF_HUB_OFFLINE=1
@@ -41,7 +45,7 @@ mkdir -p "${MPLCONFIGDIR}"
 # Make llm.verl.* importable by verl's rollout workers,
 # which get spawned from verl's package root rather than from our cwd.
 export AUCTIONNET_ROOT="${REPO_ROOT}"
-export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH}"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
 # --- Sanity ---
 echo "host:         $(hostname)"
@@ -51,7 +55,6 @@ echo "gpu:          $(nvidia-smi -L 2>/dev/null || echo 'none')"
 echo "torch cuda:   $(python -c 'import torch;print(torch.version.cuda)' 2>/dev/null || echo 'torch missing')"
 echo "vllm ver:     $(python -c 'import vllm;print(vllm.__version__)' 2>/dev/null || echo 'vllm missing')"
 echo "verl ver:     $(python -c 'import verl;print(getattr(verl,\"__version__\",\"unknown\"))' 2>/dev/null || echo 'verl missing')"
-echo "job id:       ${SLURM_JOB_ID}"
 
 # --- One-off: build train/val prompt parquets if missing ---
 DATA_DIR=data/llm/verl

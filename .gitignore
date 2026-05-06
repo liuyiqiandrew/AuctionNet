@@ -7,6 +7,7 @@
 /output/
 /llm/models/
 /slurm_out/
+/ppo/slurm/
 /tmp/
 /figures/
 *.sbatch*
