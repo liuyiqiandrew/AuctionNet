@@ -38,15 +38,42 @@ named statistics that the simulator's history cache already maintains per
 tick but that $o_t^{(60)}$ does not surface (per-slot win counts and
 exposure rates, raw conversion counts, CPA-exceedence rates, and episode
 cumulatives), and $\phi^{(2)}_t \in \mathbb{R}^{18}$ (\emph{Tier~2}) is a
-set of features derived in closed form from the same cache via three
-primitives: a length-$W$ least-squares slope $\mathrm{slope}_W$, a length-$W$
-sample standard deviation $\mathrm{std}_W$, and an episode-history $z$-score
-$z_t(x)\!=\!(x_t-\bar x_{1:t})/\mathrm{std}_{1:t}(x)$, all with $W{=}5$. The
-$18$ Tier~2 features are organised into six categories that target the
-three blind spots above: competitor-bid distribution shape,
-opponent-aggression proxies, ad-slot dynamics, regime $z$-scores, signed
-momentum of win rate / ROI / conversion rate, and a budget-pacing
-residual; their definitions are listed in the Appendix.
+set of features derived in closed form from the same cache.
+
+The Tier~2 features are computed by applying three standard time-series
+summaries to per-tick signals already tracked by the simulator. Let
+$x_{1:t}=(x_1,\ldots,x_t)$ denote any such signal (e.g.\ the within-tick
+mean of the bid floor $\mathrm{lwc}_t$). With window $W{=}5$ and
+$\bar x = \tfrac{1}{W}\sum_{k} x_{t-W+1+k}$, we use the windowed
+least-squares slope, windowed sample standard deviation, and
+episode-history $z$-score:
+\begin{equation}
+  \mathrm{slope}_W(x_t) =
+  \frac{\sum_{k=0}^{W-1}(k-\bar k)(x_{t-W+1+k}-\bar x)}
+       {\sum_{k=0}^{W-1}(k-\bar k)^{2}},
+  \quad
+  \mathrm{std}_W(x_t) =
+  \sqrt{\tfrac{1}{W}\textstyle\sum_{k}(x_{t-W+1+k}-\bar x)^{2}},
+  \quad
+  z_t(x) = \frac{x_t-\bar x_{1:t}}{\mathrm{std}_{1:t}(x)+\varepsilon}.
+\end{equation}
+Intuitively, $\mathrm{slope}_W$ summarises the recent \emph{trend} of $x$,
+$\mathrm{std}_W$ its recent \emph{volatility}, and $z_t$ how unusual the
+current tick is relative to the episode's own history so far. Applied to
+different underlying signals, these three primitives generate the
+$18$ Tier~2 features, grouped into six categories that target the three
+blind spots above: (i) \emph{competitor-bid distribution shape} (slopes,
+stds, and $z$-scores of $\mathrm{lwc}$, plus right-tail percentile gaps);
+(ii) \emph{opponent-aggression proxies} (auction-outcome ratios such as
+$\mathrm{lwc}_t/p_t$ and $b_t/\mathrm{lwc}_t$, since opponent bids are
+unobserved); (iii) \emph{ad-slot dynamics} (top-vs-floor cost and exposure
+ratios, and their slope); (iv) \emph{regime $z$-scores} of pv-volume
+intensity and win rate; (v) \emph{signed momentum} of win rate, ROI
+$p_t/\mathrm{lwc}_t$, and conversion rate via $\mathrm{slope}_5$; and
+(vi) a single \emph{budget-pacing residual}
+$\rho_t = C_t/B - (1-T_{\!\text{left}})$ that flags spending ahead of
+($\rho_t>0$) or behind ($\rho_t<0$) elapsed time. Per-key definitions
+appear in the Appendix.
 
 The augmented observation is paired with the same clipped-PPO surrogate,
 the same actor and critic MLP architectures (apart from the input layer
