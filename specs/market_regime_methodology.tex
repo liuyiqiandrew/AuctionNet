@@ -3,6 +3,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{enumitem}
 \usepackage{parskip}
+\usepackage{booktabs}
 
 \title{Market-aware Feature Engineering}
 \author{Bonnie Liu \\ COS 435 Final Project --- AuctionNet}
@@ -13,98 +14,182 @@
 
 \section{Methodology}
 
-The 16- and 60-feature observation vectors inherited from the AuctionNet
-baseline are point-statistic snapshots: per-tick means, last-three-tick
-views, and episode-historical means of bid, cost, and win-rate signals. They
-expose neither the \emph{time derivatives} of these signals (whether
-competition is heating up or cooling down), the \emph{distribution shape} of
-competitor bids (volatility, right-tail ``whales''), nor any explicit
-\emph{opponent-aggression proxy}. Because AuctionNet is a partially
-observable MDP and the 47 fixed competitors' bids are never directly
-observable, every non-Markov signal the policy might need must be compressed
-into the obs vector. We therefore augment the observation rather than the
-policy class or the reward.
+The 60-feature observation $o_t^{(60)} \in \mathbb{R}^{60}$ used by the
+team's PPO baseline is a point-statistic snapshot: per-tick means, last- and
+last-three-tick views, and episode-historical means of bid, cost, and
+win-rate signals. It does not encode three classes of information that are
+recoverable in closed form from the per-tick history cache the simulator
+already maintains: (i) \emph{time derivatives} of those statistics, (ii)
+\emph{higher-order moments} of the within-tick competitor-bid distribution,
+and (iii) \emph{opponent-aggression proxies} that ratio-encode auction
+outcomes. Since the simulator's $47$ competitors are unobserved, every
+non-Markov signal the policy might use must be surfaced into $o_t$
+explicitly; this extension adds such features at the observation layer
+while leaving the action space, transition model, reward, and PPO
+objective untouched.
 
-Let $o_t^{(60)} \in \mathbb{R}^{60}$ denote the baseline observation. We
-define the market-aware observation
+We define the market-aware observation
 \begin{equation}
-  o_t \;=\;
-  \big[\,o_t^{(60)};\;\phi^{(1)}_t;\;\phi^{(2)}_t\,\big]
+  o_t \;=\; \big[\,o_t^{(60)};\;\phi^{(1)}_t;\;\phi^{(2)}_t\,\big]
   \;\in\;\mathbb{R}^{98},
 \end{equation}
-where $\phi^{(1)}_t \in \mathbb{R}^{20}$ (Tier~1) selects statistics
-\texttt{BiddingEnv} already computes per tick but does not surface to the
-policy, and $\phi^{(2)}_t \in \mathbb{R}^{18}$ (Tier~2) is derived from the
-existing per-tick history cache via a windowed least-squares slope
-$\mathrm{slope}_W$, a windowed standard deviation $\mathrm{std}_W$ over the
-most recent $W{=}5$ ticks, and the episode-history $z$-score
-$z_t(x)=(x_t-\bar x_{1:t})/\mathrm{std}_{1:t}(x)$. The 38 added features
-group into six interpretable categories (competitor distribution shape,
-opponent-aggression proxies, slot dynamics, regime $z$-scores, momentum, and
-a budget-pacing residual); their definitions are listed in the Appendix.
+where $\phi^{(1)}_t \in \mathbb{R}^{20}$ (\emph{Tier~1}) selects $20$
+named statistics that the simulator's history cache already maintains per
+tick but that $o_t^{(60)}$ does not surface (per-slot win counts and
+exposure rates, raw conversion counts, CPA-exceedence rates, and episode
+cumulatives), and $\phi^{(2)}_t \in \mathbb{R}^{18}$ (\emph{Tier~2}) is a
+set of features derived in closed form from the same cache via three
+primitives: a length-$W$ least-squares slope $\mathrm{slope}_W$, a length-$W$
+sample standard deviation $\mathrm{std}_W$, and an episode-history $z$-score
+$z_t(x)\!=\!(x_t-\bar x_{1:t})/\mathrm{std}_{1:t}(x)$, all with $W{=}5$. The
+$18$ Tier~2 features are organised into six categories that target the
+three blind spots above: competitor-bid distribution shape,
+opponent-aggression proxies, ad-slot dynamics, regime $z$-scores, signed
+momentum of win rate / ROI / conversion rate, and a budget-pacing
+residual; their definitions are listed in the Appendix.
 
-The simulator (\texttt{step}, \texttt{reset}, \texttt{\_place\_bids},
-\texttt{\_update\_history}), action interface, and reward function are all
-left unchanged; the extension is confined to \texttt{\_get\_state\_dict} and
-a new JSON observation selector. It targets the observation \emph{layer} of
-the pipeline and is therefore orthogonal to the reward-shaping,
-sample-reweighting, temporal-encoding, and LLM-policy variants. It is
-trained with the same PPO objective, hyperparameters, and 10M-step budget as
-the obs-60 baseline; the only difference is the input dimension of the
-actor and critic MLPs.
+The augmented observation is paired with the same clipped-PPO surrogate,
+the same actor and critic MLP architectures (apart from the input layer
+width, which grows from $60$ to $98$), the same $20$-period rollout
+schedule on training periods $7\!-\!26$, and the same $10\mathrm{M}$-step
+budget as the $o_t^{(60)}$ baseline. Because the modification is confined
+to the observation layer, this extension is by construction orthogonal to
+those that act on the reward (Lagrangian shaping), on rollout sampling
+(score-weighted reweighting), or on the policy class (GRU temporal
+encoder, LLM policy), and could in principle be composed with any of them.
+
+\section{Results}
+
+We evaluate the trained policy on the held-out period $27$ using the
+$48$-advertiser sweep protocol (one deterministic rollout per advertiser at
+that advertiser's true \texttt{(budget, CPAConstraint)}). The market-aware
+policy attains a mean evaluation score of
+$\mathbf{24.85 \pm 2.09}$ (s.e.m., $n{=}48$), reported in
+Table~\ref{tab:market-aware-eval} alongside the $16$- and $60$-feature PPO
+baselines from the team's summary table.
+
+\begin{table}[h]
+  \centering
+  \small
+  \caption{Held-out period-27 advertiser-sweep evaluation. Baseline numbers
+  are from the team-wide extension comparison; the market-aware run uses
+  the same PPO hyperparameters and $10\mathrm{M}$-step budget.}
+  \label{tab:market-aware-eval}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Observation & Dim. & Sweep score (mean $\pm$ s.e.m.) \\
+    \midrule
+    PPO baseline (obs\_16)         & $16$ & $24.8$ \\
+    + $60$-feature state           & $60$ & $27.0$ \\
+    + Market-aware ($o_t^{(98)}$)  & $98$ & $24.85 \pm 2.09$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The market-aware observation is statistically indistinguishable from the
+$16$-feature PPO baseline on this evaluation and underperforms the
+$60$-feature configuration by roughly one s.e.m. The training-time signal
+on the $20$ training periods, however, is healthy: the per-rollout score
+logged during training rises from $\approx\!18$ at $1\mathrm{M}$ steps to
+$\approx\!25.4$ averaged over the final $1\mathrm{M}$ steps, with
+$\text{cost\_over\_budget}\!\approx\!0.93$ (slight under-pacing) and
+$\text{target\_cpa\_over\_cpa}\!\approx\!1.05$ (slightly inside the CPA
+target). The training trajectory plateaus around $3\mathrm{M}$ steps and
+remains flat through $10\mathrm{M}$, suggesting that the additional
+$38$ features did not introduce instability but also did not unlock
+further gains beyond what the $60$-feature observation already captures on
+the training distribution.
+
+The most parsimonious explanation for the train/test gap is a
+\emph{generalisation} failure: a wider observation enlarges the input
+layer of the actor and critic MLPs and provides more degrees of freedom
+along which the policy can specialise to the training periods $7\!-\!26$.
+Several Tier~2 features (windowed slopes, $z$-scores, ratios) are also
+high-variance scalar transforms of the same underlying signals already
+present in $o_t^{(60)}$, which can amplify estimation noise without adding
+information that survives the train/test distribution shift to period
+$27$. Two natural follow-ups are (a) a permutation-importance pass on the
+trained model to identify which Tier~2 features actually carry signal in
+the training distribution, followed by a leaner $o_t$ that retains only
+those keys, and (b) regularisation aimed at the wider input layer (e.g.\
+input dropout or an L$2$ penalty on the first-layer weights of the actor
+and critic). Both are deferred to future work; the present extension
+should be read as evidence that simply expanding the observation vector
+along plausible market-regime axes is not sufficient on this benchmark.
 
 \section{Appendix}
 
-\subsection*{Windowed primitives}
+\subsection*{A.1\ \ Windowed primitives}
 
-For any tracked signal $x_{1:t}$ and window $W{=}5$,
+For any tracked scalar signal $x_{1:t}$ and window length $W$, with
+$\bar k = (W-1)/2$ and $\bar x = \tfrac{1}{W}\sum_{k=0}^{W-1} x_{t-W+1+k}$,
 \begin{equation}
-  \mathrm{slope}_W(x_{t}) \;=\;
-  \frac{\sum_{k=0}^{W-1}\!\big(k-\bar k\big)\big(x_{t-W+1+k}-\bar x\big)}
-       {\sum_{k=0}^{W-1}\!\big(k-\bar k\big)^{2}},
+  \mathrm{slope}_W(x_t) \;=\;
+  \frac{\sum_{k=0}^{W-1}(k-\bar k)(x_{t-W+1+k}-\bar x)}
+       {\sum_{k=0}^{W-1}(k-\bar k)^{2}},
   \qquad
-  \mathrm{std}_W(x_{t}) \;=\;
-  \sqrt{\tfrac{1}{W}\!\sum_{k=0}^{W-1}\!\big(x_{t-W+1+k}-\bar x\big)^{2}}.
+  \mathrm{std}_W(x_t) \;=\;
+  \sqrt{\tfrac{1}{W}\!\sum_{k=0}^{W-1}(x_{t-W+1+k}-\bar x)^{2}}.
 \end{equation}
+The slope is the closed-form OLS estimate against an integer time index;
+the episode $z$-score $z_t(x)=(x_t-\bar x_{1:t})/\mathrm{std}_{1:t}(x)$
+uses cumulative mean and std over the episode prefix, with
+$\mathrm{std}_{1:t}$ floored at a small $\varepsilon$ to guard against
+constant prefixes.
 
-\subsection*{Tier 2 feature categories}
+\subsection*{A.2\ \ Tier~1 surfaced statistics (20 keys)}
 
-Below $\mathrm{lwc}_t$ denotes the within-tick mean of the least-winning
-competitor cost (the bid floor), $b_t$ our own bid mean, $p_t$ the mean
-predicted conversion probability, $\mathrm{wr}_t$ the win rate, and
-$C_t,B,T_{\!\text{left}}$ the cumulative cost, total budget, and remaining
-time fraction.
+Per-slot win counts $\{\text{bid\_success\_count\_slot\_}j\}_{j=1,2,3}$ in
+last/last-three/historical views; per-slot exposure rates
+$\{\text{exposure\_mean\_slot\_}j\}_{j=1,2,3}$ in the same three views;
+last-three and historical raw conversion counts; last/last-three/historical
+CPA-exceedence rates; and the episode cumulatives
+$Y_t,\,C_t,\,\mathrm{CPA}_t$. These quantities are already maintained by
+the simulator's per-tick history update, so Tier~1 is implemented as a
+selection-only change to the JSON observation key list with no code
+change to the environment.
+
+\subsection*{A.3\ \ Tier~2 derived features (18 keys)}
+
+Below $\mathrm{lwc}_t$ denotes the within-tick mean of the least winning
+competitor cost (the auction floor faced by the agent), $b_t$ the agent's
+mean submitted bid at tick $t$, $p_t$ the mean predicted conversion
+probability over the tick's impression batch, $\mathrm{wr}_t$ the win rate,
+and $C_t,B,T_{\!\text{left}}$ the cumulative spend, total budget, and
+remaining time fraction.
+
 \begin{itemize}\itemsep 2pt
-  \item \textbf{Competitor distribution shape} (7 keys): trend
-        $\mathrm{slope}_5(\mathrm{lwc}_t)$, dispersion
-        $\mathrm{std}_5(\mathrm{lwc}_t)$, coefficient of variation
-        $\mathrm{std}_5/\mathrm{mean}_5$, the current-tick $z$-score
-        $z_t(\mathrm{lwc})$, and the right-tail width
-        $\mathrm{lwc}^{(01\%)}_t-\mathrm{lwc}^{(10\%)}_t$ that exposes
-        ``whale'' bidders the mean alone smooths out.
-  \item \textbf{Opponent-aggression proxies} (2 keys): since opponent bids
-        are unobserved, we infer them from auction outcomes via
-        $\alpha^{\mathrm{opp}}_t = \mathrm{lwc}_t/p_t$ and our own
-        competitiveness $\beta_t = b_t/\mathrm{lwc}_t$.
-  \item \textbf{Slot dynamics} (3 keys): the cost ratio $c^{(1)}_t/c^{(3)}_t$
-        between top and floor ad slot, the analogous exposure ratio, and the
-        slope of slot concentration over the last five ticks.
-  \item \textbf{Regime $z$-scores} (2 keys): $z_t$ of pv-volume intensity and
-        of win rate, locating the current tick within the episode's own
-        history rather than against an absolute scale.
-  \item \textbf{Momentum / acceleration} (3 keys): $\mathrm{slope}_5$ of
+  \item \textbf{Competitor distribution shape (7).}
+        $\mathrm{slope}_5(\mathrm{lwc})$ and $\mathrm{std}_5(\mathrm{lwc})$
+        capture trend and volatility of the bid floor; the coefficient of
+        variation $\mathrm{std}_5/\mathrm{mean}_5$ separates absolute from
+        relative volatility; $z_t(\mathrm{lwc})$ locates the current tick
+        within the episode's own scale; the right-tail width
+        $\mathrm{lwc}^{(01\%)}_t-\mathrm{lwc}^{(10\%)}_t$ and ratio
+        $\mathrm{lwc}^{(\max)}_t/\mathrm{lwc}^{(\mathrm{mean})}_t$ expose
+        ``whale'' bidders whose presence the baseline mean smooths out;
+        $\mathrm{slope}_5$ of the percentile gap tracks whether the tail
+        is widening.
+  \item \textbf{Opponent-aggression proxies (2).} Because competitor bids
+        are unobservable, we infer opponent stance from auction outcomes:
+        $\alpha^{\mathrm{opp}}_t = \mathrm{lwc}_t / p_t$ (price the market
+        clears per unit of predicted conversion) and the agent's own
+        competitiveness $\beta_t = b_t / \mathrm{lwc}_t$.
+  \item \textbf{Slot dynamics (3).} The cost ratio
+        $c^{(1)}_t/c^{(3)}_t$ between the top and floor ad slot, the
+        analogous exposure ratio, and the $\mathrm{slope}_5$ of slot
+        concentration. Together they signal whether premium ad real estate
+        is being contested or vacated.
+  \item \textbf{Regime $z$-scores (2).} $z_t$ of pv-volume intensity and of
+        win rate, locating the current tick within the episode's empirical
+        distribution rather than against an absolute scale.
+  \item \textbf{Momentum / acceleration (3).} $\mathrm{slope}_5$ of
         $\mathrm{wr}_t$, of the ROI proxy $p_t/\mathrm{lwc}_t$, and of the
         per-tick conversion rate.
-  \item \textbf{Pacing residual} (1 key):
+  \item \textbf{Budget-pacing residual (1).}
         $\rho_t = C_t/B - (1-T_{\!\text{left}})$, with $\rho_t>0$ indicating
-        overpacing and $\rho_t<0$ underpacing.
+        cumulative spend ahead of elapsed time and $\rho_t<0$ indicating
+        underpacing.
 \end{itemize}
-
-\subsection*{Tier 1 selections (20 keys)}
-
-Per-slot win counts, per-slot exposure rates, raw conversion volume,
-last-/last-three-/historical CPA exceedence rate, and episode cumulatives
-($Y_t,C_t,\mathrm{CPA}_t$). These are already maintained by
-\texttt{\_update\_history}; only the observation selector changes.
 
 \end{document}
