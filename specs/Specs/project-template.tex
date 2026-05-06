@@ -339,6 +339,45 @@ an LLM.
 
 \section{Results}
 
+\begin{table}[h]
+  \centering
+  \small
+  \caption{Held-out period-27 sweep score (mean $\pm$ s.e.m., $n{=}48$).
+  Bold marks the best variant within each extension family.}
+  \label{tab:ppo-extensions-summary}
+  \begin{tabular}{@{}llccc@{}}
+    \toprule
+    Method & Variant & Obs & Steps & Sweep score ($n{=}48$) \\
+    \midrule
+    PPO baseline       & ---                                  & $16$ & $10$M & $20.14 \pm 2.25$ \\
+    PPO baseline       & ---                                  & $60$ & $10$M & $23.23 \pm 2.02$ \\
+    \midrule
+    Reward shaping     & $\lambda = 10^{-2}$                  & $16$ & $10$M & $22.10 \pm 1.73$ \\
+    Reward shaping     & $\lambda = 10^{-3}$                  & $16$ & $10$M & $25.33 \pm 2.18$ \\
+    Reward shaping     & $\lambda = 10^{-4}$                  & $16$ & $10$M & $\mathbf{25.95 \pm 2.15}$ \\
+    \midrule
+    Sample reweighting & $\alpha{=}0.9,\,T{=}30$              & $16$ & $10$M & $24.64 \pm 2.23$ \\
+    Sample reweighting & $\alpha{=}0.9,\,T{=}30$              & $60$ & $10$M & $\mathbf{28.59 \pm 2.12}$ \\
+    \midrule
+    Temporal encoding  & $K{=}4,\,H{=}64$, separate           & $16$ & $10$M & $24.78 \pm 2.29$ \\
+    Temporal encoding  & $K{=}8,\,H{=}32$, shared             & $60$ & $10$M & $\mathbf{24.85 \pm 2.28}$ \\
+    \midrule
+    Market-aware       & $o_t^{(98)}$                         & $98$ & $5$M  & $\mathbf{24.87 \pm 2.21}$ \\
+    Market-aware       & $o_t^{(98)}$                         & $98$ & $10$M & $24.85 \pm 2.09$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Table~\ref{tab:ppo-extensions-summary} compiles the held-out period-27 sweep
+scores for the four PPO extensions on a common axis. The strongest
+configuration per extension is sample reweighting on obs-60 ($28.59$),
+followed by reward shaping at $\lambda{=}10^{-4}$ on obs-16 ($25.95$), the
+$5$M-step market-aware run ($24.87$), and the best temporal encoder
+($24.85$). All four extensions improve on the obs-16 baseline; sample
+reweighting is the only one that also clears the stronger obs-60 baseline by
+more than one s.e.m. The sections that follow report each extension in
+detail.
+
 \subsection{Temporal Encoding}
 \begin{table}[h]
     \centering
