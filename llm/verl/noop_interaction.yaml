@@ -1,0 +1,3 @@
+interaction:
+  - class_name: llm.verl.noop_interaction.NoOpInteraction
+    config: {}
