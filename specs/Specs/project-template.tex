@@ -3,49 +3,483 @@
 
 \begin{document}
 
-\newcommand{\alcomment}[1]{{\color{blue} {\bf AL:} (#1) }}
-\newcommand{\lectureTitle}{Project Proposal: Reinforcement Learning for Large-Scale Auto-Bidding}
-\newcommand{\lectureDate}{Due: March 20, 2026}
 
-\textsc{COS435 / ECE433: Introduction to RL} \hfill \lectureDate
-\vspace{1em}
+\newcommand{\lectureTitle}{Reinforcement Learning for Large-Scale Auto-Bidding}
+\newcommand{\lectureHeader}{RL for Large-Scale Auto-Bidding}
+\newcommand{\lectureDate}{Due: May 8th, 10:30 PM}
+
+\textsc{COS435 / ECE433: Introduction to RL} 
+\vspace{1em} \hfill \lectureDate
 
 \maketitle
 
-% \vspace{-15pt}
-\paragraph{Authors:}
-Ruirong Feng (\texttt{rrfeng@princeton.edu}), 
-Ophelia Fulton (\texttt{of4642@princeton.edu}),
+\paragraph{Authors.}($\alpha$-$\beta$ order) Ruirong Feng (\texttt{rrfeng@princeton.edu}), Ophelia Fulton (\texttt{of4642@princeton.edu}),
 Xinya (Claire) Gu (\texttt{xg3412@princeton.edu}),
 Bonnie Liu (\texttt{bl0919@princeton.edu}),
-% \alcomment{Claire and Bonnie should verify name + email},
 Yiqi (Andrew) Liu (\texttt{andrew.liu@princeton.edu})
 
+\paragraph{Link to GitHub Repo.} \url{https://github.com/liuyiqiandrew/AuctionNet}
+% \section*{Instructions}
+%
+% This is a rough template guide for your final project report. If you do not have these exact sections in your final report, or do not follow this formatting, do not worry -- prioritize the contents over the exact section breakdown here.
+%
+% A few things to keep in mind:
+% \begin{itemize}
+%     \item {\bf The main body of your final report must be $\leq 8$ pages.} If your current report is longer than $8$ pages, please push finer details to an Appendix or cut down on the current text. You should {\it probably} aim to have at least 4 pages of content, but again, we won't automatically take off points if the length is too short. 
+%     \item {\bf There is no minimum length for the final report.} Please make sure to cover the rubric items in the final project guidelines.
+%     \item {\bf The minimum allowed font size if 10 pt. as it is in this template for readability.} There is no restriction on the specific font you choose. Because there is no minimum length, you can choose to make your font-size 12 pt., but please keep everything reasonable-looking (i.e. no 16 pt. situation). 
+%     \item {\bf Signpost.} Please do some signposting, even if you don't use the section breakdown here -- this is to ensure that we don't miss anything within your report. It is okay to even, i.e., include headings for your paragraphs:
+%     \\\\{\bf What is the problem? } Insert text here. \\
+%
+%     but we encourage you to write this report like a realistic NeurIPS, ICLR, ICML, etc. paper where content is wrapped into the main sections. Again, we will evaluate the reports on {\bf content} over the exact formatting and structure. 
+% \end{itemize}
 
-% \vspace{-5pt}
-\paragraph{Project type:}
-3. Try to win one of the RL competitions (AuctionNet)
+\section{Introduction}
 
-% \vspace{-5pt}
-\paragraph{Description}
-The NeurIPS 2024 competition \textit{Auto-Bidding in Large-Scale Auctions: Learning Decision-Making in Uncertain and Competitive Games} \citep{xu2024autobidding} poses a real-world sequential decision-making problem in a competitive multi-agent setting. In this competition, an auto-bidding agent acts on behalf of an advertiser to maximize conversions subject to budget and cost-per-acquisition constraints. At each decision step, the agent observes a stream of ad opportunities with associated features, submits bids, and competes against other agents in repeated Generalized Second-Price auctions with multiple ad slots. The competition environment and dataset are built on AuctionNet \citep{su2024auctionnet}, a benchmark derived from a real-world advertising platform and designed to emulate realistic ad-auction dynamics. AuctionNet provides both an auction simulator and baseline algorithms through a public repository\footnote{\url{https://github.com/alimama-tech/AuctionNet}}, making it a practical testbed for studying learning-based bidding policies under uncertainty and strategic competition.
+% Introduce the problem. Please cover the following points:
+% \begin{itemize}
+%     \item Motivation: What is the problem?
+%     \item Motivation: Why is it interesting and important?
+%     \item Motivation/relationship with prior work: Why is it hard? (E.g., why do naive approaches fail?)
+%     \item Relationship with prior work: Why hasn't it been solved before? (Or, what's wrong with previous proposed solutions? How does mine differ?)
+%     \item Methods and results: What are the key components of my approach and results? Also include any specific limitations.
+% \end{itemize}
 
-% AuctionNet is a benchmark for large-scale ad auction bidding, a real-world sequential decision-making problem in a competitive multi-agent setting \citep{su2024auctionnet}. In this setting, an auto-bidding agent acts on behalf of an advertiser to optimize campaign objectives such as impressions and conversions. To do so, the agent observes a stream of advertising opportunities, submits bids in repeated auctions, and competes against other agents in a dynamic auction environment. AuctionNet provides both an auction simulator and baseline algorithms through a public GitHub repository\footnote{\url{https://github.com/alimama-tech/AuctionNet}}, making it a practical testbed for studying learning-based bidding policies in competitive settings.
+Auto-bidding is the control layer between an advertiser's campaign objective and
+the real-time auction market. An advertiser aims to maximize conversions, under
+a limited budget and the realized cost per acquisition (CPA).
+AuctionNet turns this problem into a public benchmark built from large-scale
+auction logs: at each decision point, the bidder chooses a scalar multiplier
+that determines bids for a batch of impressions, competes against other
+advertisers, and receives reward only after auction outcomes and conversions are
+realized \citep{su2024auctionnet,xu2024autobidding}. The task is therefore a
+natural sequential decision problem, but not a clean textbook one. The agent
+observes only a summary of the market, the relevant constraints operate over an
+episode, and the best action depends on how much budget and CPA slack should be
+saved for future traffic.
 
-The auto-bidding problem is challenging because rewards are sparse and delayed: most impressions do not convert, and successful outcomes may depend on a sequence of earlier bidding decisions. The environment is also competitive and effectively nonstationary, since performance depends on other agents’ behavior and on budget allocation over time. These features make simple static or myopic bidding rules insufficient. The agent must plan over a long horizon while adapting to a changing competitive landscape. Reinforcement learning (RL) has been a primary framework for auto-bidding, since the problem can be formulated as a constrained Markov decision process, that is, a sequential decision problem with explicit budget constraints \citep{cai2017realtime, wu2018budget, he2021unified}. However, whether RL is the state-of-the-art solution remains unclear as a growing body of work starts to explore alternatives such as online linear programming \citep{hao2020dynamic}, imitation learning \citep{chiappa2025oil}, and generative modeling \citep{guo2024generative}. 
+Static or myopic bidding rules miss this tradeoff. A policy that bids
+aggressively on every high-probability impression can exhaust its budget before
+later opportunities arrive; a policy that only protects CPA can leave valuable
+conversions unclaimed. Standard on-policy actor-critic training is a natural
+baseline because it learns directly from simulator feedback, but the naive
+version leaves several failure modes exposed: the CPA penalty is delayed, the
+observation hides market-regime changes, and uniform rollouts spend the same
+gradient budget on easy and hard periods.
 
-Our project will center on RL implementations for the auto-bidding competition. We will begin by reproducing a baseline RL agent within the provided framework to validate the environment, metrics, and training pipeline \citep{su2024auctionnet}. Because AuctionNet provides both logged trajectories from diverse agents and an interactive auction simulator, it supports both offline and online RL methods. Building on this baseline, we will investigate whether targeted RL design modifications can improve performance, including general techniques such as reward shaping \citep{ng1999reward_trans} and recurrent policies that incorporate recent history in partially observable settings \citep{hausknecht2015deep}, as well as domain-specific adaptations such as budget-aware state representation \citep{wu2018budget}. Our goal is to use these comparisons to identify a final RL agent that achieves strong performance relative to the provided baseline in AuctionNet.
+Recent alternatives make larger changes to the solution concept.
+Dynamic-knapsack methods decompose long-horizon advertising into budget
+allocation and policy optimization, but depend on a knapsack structure and
+greedy selection rule that is not the same as learning a scalar bid multiplier
+inside AuctionNet's replay simulator \citep{hao2020dynamic}. DiffBid avoids the
+Markov assumption by training a conditional diffusion model over whole
+trajectories, but this shifts the problem toward offline trajectory generation
+from historical bidding logs rather than online policy improvement
+\citep{guo2024generative}. Oracle imitation learning is especially strong on
+AuctionNet, but its supervision comes from a hindsight oracle that sees the full
+campaign traffic and solves a nonlinear multiple-choice knapsack problem before
+training the student policy \citep{chiappa2025autobidding}.
 
-We anticipate several engineering and scientific challenges. First, reproducing the provided baseline may require substantial effort due to dependencies and evaluation details, so our first milestone is to obtain a working end-to-end baseline result that can serve as the reference for later experiments. Second, the full AuctionNet dataset is large, making local development inefficient. We will therefore use smaller-scale local experiments for debugging and cluster resources for larger runs. Third, because the project timeline is short relative to the required engineering effort, we will focus on a small number of targeted RL modifications rather than a broad sweep of methods. Finally, because the most competitive auto-bidding methods reported for the competition are not necessarily built on standard RL \citep[e.g.][]{chiappa2025oil}, we will evaluate success primarily through improvement over the provided RL baselines, together with careful ablation studies.
+These methods identify what vanilla online RL does not specify on its own: how
+delayed CPA feedback should shape pacing, which market statistics should be
+exposed to a partially observed policy, how recent history should enter the
+state, and how training updates should be allocated across heterogeneous
+periods. We study these factors while keeping the AuctionNet scalar action,
+replay simulator, and evaluation protocol fixed. Starting from the provided
+actor-critic policy, we formulate the task as a POMDP and use the same baseline
+pipeline as the reference point for all extensions
+\citep{cai2017realtime,wu2018budget,he2021unified}.
 
-We plan to meet twice per week to coordinate progress in implementation, experiments, and writing. During the initial phase, tasks will be divided between literature review and baseline reproduction. Once a working baseline is established, we will identify a small number of promising RL modifications and develop them in parallel. Throughout the project, all team members will contribute through implementation, experiment analysis, and writing.
+Our experiments vary the components of the online RL pipeline rather than
+replacing the benchmark with a different supervision problem. At the observation
+level, we compare compact benchmark features, a richer state used by stronger
+competition agents, and additional market-regime signals. At the training level,
+reward shaping and score-weighted period sampling test whether the policy
+benefits from denser constraint feedback and more informative rollouts. At the
+policy level, a recurrent encoder tests whether learned history summaries
+improve over hand-crafted rolling statistics. We also evaluate large language
+models as bidding policies by fine-tuning Qwen3-8B with GRPO and LoRA adapters.
+Across these experiments, improvements in state design account for the largest
+gains, while the pretrained LLM policy shows faster early adaptation but a lower
+ceiling than the strongest non-LLM actor-critic policy in our runs. The resulting
+study provides a compact training recipe for constrained decision making under
+partial information and an empirical probe of how generic pretrained policies
+behave in numerical constrained optimization with delayed rewards.
+
+% \section{Related Work}
+% Literature review here; a rough sketch: 
+% \begin{itemize}
+%   \item Works that put forward the auto-bidding problem, to show why it is important
+%   \item Different ramifications of solutions to auto-bidding
+%   \item Review of RL methods and why they are natural and compelling for this problem
+% \end{itemize}
+
+\section{Methods}
+% we may also need one big ML conference style diagram here 
+%
+% NOTE: put hyperparameter tuning process in the Appendix, talk high-level things here.
+
+\subsection{Problem Setup and PPO Baseline}
+We study the AuctionNet auto-bidding environment from the NeurIPS 2024 competition on auto-bidding under uncertainty \citep{xu2024autobidding}.
+The environment follows the real-time auction setting used in recent
+auto-bidding work \citep{chiappa2025autobidding}. Each
+episode corresponds to one advertiser in one delivery period. The advertiser is
+given a total budget \(B\), a target cost per acquisition
+\(\mathrm{CPA}_{\mathrm{target}}\), and a horizon of \(T=48\) bidding ticks.
+At tick \(t\), the simulator presents a batch \(\mathcal{I}_t\) of impression
+opportunities, each with a predicted conversion probability
+\(p_{t,i}\). The agent chooses a scalar log-bid multiplier
+\(a_t \in [-10,10]\), which is applied to every impression in the batch:
+\[
+  b_{t,i} = \exp(a_t)\,p_{t,i}\,\mathrm{CPA}_{\mathrm{target}},
+  \qquad i \in \mathcal{I}_t.
+\]
+The controlled bids are inserted into historical auctions against the other
+47 advertisers, whose bids are fixed by the dataset. Slots and prices are then
+determined by the auction simulator, spend is deducted from the remaining
+budget, and conversions are sampled from the predicted values. The simulator
+enforces the budget constraint, while the AuctionNet evaluation score applies a
+quadratic penalty when the realized CPA exceeds the target. For a trajectory
+\(\tau\), total conversions and cost are \(Y_T(\tau)\) and \(C_T(\tau)\),
+respectively, and the realized CPA is
+\(\mathrm{CPA}_T(\tau)=C_T(\tau)/\max\{Y_T(\tau),1\}\). The evaluation score is
+\[
+  R(\tau) =
+  Y_T(\tau) \cdot
+  \min\!\left\{1,
+  \left(\frac{\mathrm{CPA}_{\mathrm{target}}}{\mathrm{CPA}_T(\tau)}\right)^2
+  \right\}.
+\]
+
+We formulate the task as a partially observable Markov decision process
+\((\mathcal{S}, \mathcal{A}, \Omega, \mathcal{P}, \mathcal{O},
+\mathcal{R})\). The latent state \(s_t \in \mathcal{S}\) contains the
+current campaign status, auction traffic, competitor bids, and future market
+conditions that the agent cannot fully observe. The action space
+\(\mathcal{A}\) is the scalar log-bid multiplier above. The observation
+\(o_t \in \Omega\) is a feature vector summarizing the current tick, remaining
+budget, target CPA, current impression statistics, and historical bidding
+outcomes. After the agent samples \(a_t \sim \pi_\theta(\cdot \mid h_t)\), with
+history \(h_t=(o_0,a_0,\ldots,o_t)\), the simulator transitions according to
+\(\mathcal{P}(\cdot \mid s_t,a_t)\), emits a new observation through
+\(\mathcal{O}\), and returns reward \(r_t=\mathcal{R}(s_t,a_t)\). In the
+standard PPO baseline, this reward is the per-step CPA-clipped score computed
+from the realized cost and conversions at tick \(t\); the terminal AuctionNet
+score is used for evaluation. The expected return under policy \(\pi_\theta\)
+is
+\[
+  J(\theta)=
+  \mathbb{E}_{\pi_\theta}\!\left[
+    \sum_{t=0}^{T-1} \gamma^t r_t
+  \right],
+\]
+with discount factor \(\gamma\). Our baseline uses the 16-feature observation,
+an MLP actor-critic policy with a diagonal Gaussian action distribution, and
+running observation/reward normalization. It is trained on 20 periods of
+trajectory data and evaluated on one held-out period.
+
+For the baseline actor-critic policy, we optimize the standard clipped PPO
+surrogate. Let \(\pi_{\theta_{\mathrm{old}}}\) be the rollout policy,
+\(\rho_t(\theta)=\pi_\theta(a_t\mid o_t)/
+\pi_{\theta_{\mathrm{old}}}(a_t\mid o_t)\), \(\hat A_t\) be the advantage
+estimate, and \(\hat V_t\) be the bootstrapped return target. The PPO objective
+is
+\begin{equation}
+\begin{split}
+  \mathcal{L}_{\mathrm{PPO}}(\theta)
+  =
+  \mathbb{E}_t \Big[
+    &\min\!\big(
+      \rho_t(\theta)\hat A_t,\,
+      \mathrm{clip}(\rho_t(\theta),1-\epsilon_c,1+\epsilon_c)\hat A_t
+    \big) \\
+    &\qquad\qquad\qquad- c_v\big(V_\theta(o_t)-\hat V_t\big)^2
+    + c_H\,\mathcal{H}\!\left(\pi_\theta(\cdot\mid o_t)\right)
+  \Big].
+\end{split}
+\end{equation}
+Beyond the standard clipped PPO surrogate, the quadratic term fits the value
+function used for advantage estimation, and the entropy term
+\(\mathcal{H}(\pi_\theta)\) discourages premature collapse of the continuous
+Gaussian policy.
+This baseline fixes the auction simulator, scalar bid interface, and evaluation
+protocol for all PPO-based extensions below.
+
+\subsection{PPO Pipeline Extensions}
+We treat the online PPO bidder as the reference pipeline and vary the components
+most directly tied to constrained bidding under partial information: constraint
+feedback, rollout allocation, temporal context, and market state. All variants share the AuctionNet scalar action interface and replay evaluation protocol, yielding a controlled ablation in which score differences are attributable to the modified component.
+
+% @Andrew, Claire, Bonnie, Ophelia: write your extension here succintly --- motivation, main extension with formula (and explain your formula);
+%
+% Use the following environment to wrap up your extension:
+%
+% --- BEGIN ---
+% \paragraph{Your extension.}
+% Your writing
+% --- END ---
+\paragraph{Reward Shaping.}
+The unconstrained PPO maximizes rewards but without mechanism to constrain CPA when the agent exceeds the target CPA. We added a fixed Lagrangian penalty coefficient $\lambda$ that penalizes CPA exceedance, applied per step rather than only at terminal:
+\begin{align*}
+  \mathcal{L}(\pi, \lambda) \;=\; \mathbb{E}\!\left[\sum_t \text{conv}_t\right] \;-\; \lambda \cdot \mathbb{E}\!\left[\bigl(\text{total\_cost} - \text{target\_CPA} \cdot \text{total\_conv}\bigr)_{+}\right]
+\end{align*}
+$\lambda$ here is a hyperparameter that we tune, and more specifically $\lambda \in \{.0001, .001, .01\}$. We calculated the per step overspend as:
+\[
+  \text{overspend}_t = \max\bigl(0,\; \text{cost}_t - \text{target\_cpa} \cdot \text{conv}_t\bigr)
+\]
+so the shaped reward $r^{\text{shaped}}_t = r_t - \lambda * \text{overspend}_t$, and when $\lambda = 0$, we have the original PPO. With such, we expect the policy learns to bid more carefully and follows CPA in training.
+
+% --- BEGIN ---
+\paragraph{Sample Reweighting.}
+The default pipeline samples uniformly from training periods 7--26, spending equal
+gradient budget on periods where the policy already performs well and those it struggles
+with. We replace this with a score-weighted distribution that oversamples
+high-performing (advertiser, period) pairs. For each pair~$j$ we compute the policy's
+NeurIPS score and assign sampling weight
+%
+\begin{equation}
+  w_j = \alpha \cdot \mathrm{softmax}(\mathrm{score}_j / T)
+      + (1 - \alpha) \cdot \tfrac{1}{N},
+\end{equation}
+%
+where $T$ controls concentration strength and $\alpha$ interpolates between reweighted
+and uniform sampling. At each rollout, the worker draws a new pair according to~$w_j$.
+We set $\alpha{=}0.9$ and $T{=}30$: the $(1{-}\alpha)$ uniform floor ensures every
+period is visited occasionally, preventing the policy from forgetting rare regimes, while $T{=}30$ provides moderate concentration, which ensures the highest-scoring trajectories
+receive several times the sampling probability of the lowest, but without collapsing
+onto a small handful of easy campaigns. All other pipeline components remain unchanged.
+% --- END ---
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\paragraph{Temporal Encoding.}
+
+The original online PPO bidding policy observes each auction period as a
+state vector $x_t \in \mathbb{R}^{d}$ and uses a feed-forward 
+network to map the state vector to a bid coefficient.
+The temporal extension alters the state representation for the policy
+by using the $K$ most recent states as the input $X_t$ for each step.
+If fewer than $K$ steps are available, the history is padded by repeating the earliest
+available state.
+
+The history $X_t$ is encoded into a hidden summary $h_t$ by a 
+residue Gated Recurrent Unit (GRU) \cite{cho-etal-2014-learning}.
+The hidden vector $h_t$ is concatenated with the latest state $x_t$ and 
+passed through layer normalization to form the augmented PPO input $z_t$.
+\begin{align}
+    h_t = \mathrm{GRU}(X_t), \qquad
+    z_t = \mathrm{LayerNorm}([h_t; x_t]).
+\end{align}
+This residue path preserves current-period bidding features, while
+the GRU summarizes short-horizon trajectory information.
+
+Unless otherwise specified, actor and critic use
+separate temporal feature extractors, matching the intuition that action
+selection and value estimation may attend to different temporal summaries.
+A shared-extractor variant was also implemented to test whether the extra
+capacity of separate GRUs is necessary or whether a single temporal
+representation regularizes the actor-critic update.
 
 
+
+\paragraph{Market-aware Feature Engineering.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{RL Training on LLM}
+We test the performance of large language models (LLM) on the auto-bidding task
+before and after RL training to explore whether a pretrained generic model can
+improve final score, sample efficiency, and training stability of reinforcement learning. We use Qwen3-8B
+as the base policy model. At each tick, the current auction state is serialized
+into a short prompt containing budget, target CPA, market statistics, and historical
+performance. The model emits one numeric action, treated as the same log-bid
+multiplier $a_t$ used by the PPO baseline:
+\[
+  b_{t,i} = \exp(a_t)\, p_{t,i}\,\mathrm{CPA}_{\mathrm{target}}.
+\]
+
+We adopt Group Relative Policy Optimization (GRPO) as the training objective. For each prompt
+\(x\), the rollout policy \(\pi_{\mathrm{old}}\) samples \(G\) trajectories
+\(\{\tau_i\}_{i=1}^{G}\), receives terminal returns \(\{R_i\}_{i=1}^G\), and assigns each
+trajectory the group-normalized advantage
+\(\hat A_i=(R_i-\mu_R)/(\sigma_R+\varepsilon)\), where \(\mu_R\) and
+\(\sigma_R\) are computed within the group. The optimization objective is the clipped surrogate
+with a KL penalty to the reference policy:
+\begin{equation}
+\begin{split}
+  \mathcal{L}_{\mathrm{GRPO}}(\theta)
+  &=
+  \mathbb{E}_{x,\{\tau_i\}}\Bigg[
+  \frac{1}{G}\sum_{i=1}^{G}
+  \min\!\Bigg(
+    \frac{\pi_\theta(\tau_i\mid x)}
+         {\pi_{\mathrm{old}}(\tau_i\mid x)}\hat A_i, \\
+  &\qquad\qquad\qquad
+    \mathrm{clip}\!\left(
+      \frac{\pi_\theta(\tau_i\mid x)}
+           {\pi_{\mathrm{old}}(\tau_i\mid x)},
+      1-\epsilon_c,1+\epsilon_c
+    \right)\hat A_i
+  \Bigg)
+  - \beta D_{\mathrm{KL}}(\pi_\theta\,\Vert\,\pi_{\mathrm{ref}})
+  \Bigg].
+\end{split}
+\end{equation}
+In the auto-bidding environment, a prompt \(x\) corresponds to one
+\((\text{period},\text{advertiser})\) row. One trajectory \(\tau_i\) is a full
+48-tick episode: at every tick, the environment state is rendered as the next
+user message, the LLM emits the numeric action \(a_t\), and the simulator advances one
+step. Chain-of-thought is disabled so that the assistant tokens are only the
+action response. Each GRPO update samples four prompts and \(G=4\) trajectories
+per prompt, giving 16 episodes whose terminal AuctionNet scores are the returns
+\(R_i\) above. During training, we use LoRA adapters on Qwen3-8B's attention
+and MLP projection modules to make policy updates feasible without
+full-parameter fine-tuning. The experiment keeps
+the AuctionNet dynamics and scalar bid interface fixed relative to the MLP
+actor-critic baseline, isolating the effect of replacing that policy class with
+an LLM.
+
+\section{Results}
+
+\subsection{Temporal Encoding}
+\begin{table}[h]
+    \centering
+    \small
+    \caption{Held-out period-27 advertiser-sweep score for temporal encoding extension. 
+    Entries report mean terminal scores.}
+    \label{tab:temporal-eval}
+    \begin{tabular}{@{}cccccc@{}}
+        \toprule
+        Features & $K$ & \multicolumn{2}{c}{$H=32$} & \multicolumn{2}{c}{$H=64$} \\
+        \cmidrule(lr){3-4} \cmidrule(lr){5-6}
+         &  & Separate & Shared & Separate & Shared \\
+        \midrule
+        16 & Baseline & \multicolumn{4}{c}{$20.14 \pm 2.25$} \\
+        16 & 4 & $23.80 \pm 2.32$ & $23.58 \pm 2.29$ & $24.78 \pm 2.29$ & $24.48 \pm 2.27$ \\
+        16 & 8 & $24.26 \pm 2.46$ & $22.85 \pm 2.25$ & $22.69 \pm 2.24$ & $23.93 \pm 2.17$ \\
+        16 & 32 & $22.35 \pm 2.38$ & $24.23 \pm 2.24$ & $23.97 \pm 2.45$ & $22.77 \pm 2.37$ \\
+        \addlinespace
+        60 & Baseline & \multicolumn{4}{c}{$23.23\pm 2.02$} \\
+        60 & 4 & $22.07 \pm 2.18$ & $23.73 \pm 2.40$ & $24.56 \pm 2.15$ & $20.45 \pm 2.16$ \\
+        60 & 8 & $22.18 \pm 1.85$ & $24.85 \pm 2.28$ & $23.01 \pm 2.33$ & $23.38 \pm 1.50$ \\
+        60 & 32 & $22.94 \pm 2.25$ & $18.68 \pm 1.45$ & $23.47 \pm 2.60$ & $23.10 \pm 2.03$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+% @Andrew: result description + takeaway (which hypothesis does this extension validates?)
+The temporal encoder extension is examined over three hyper parameter: history 
+length ($K = 4, 8, 32$), GRU hidden dimension size ($H = 32, 64$), and actor-critic feature sharing 
+(separated versus shared temporal extractors). Each hyperparameter combination is tested on both 
+the fiducial 16-feature state and the extended 60-feature states for a total of 24 extension 
+experiments.
+
+Table~\ref{tab:temporal-eval} reports the held-out evaluation score for the temporal encoding 
+extension hyperparameter sweep. The extension provides clearest benefit in the fiducial
+16-feature observation configurations. The best model ($K = 4$, $H = 64$, separate) 
+improves the evaluation score from $20.14\pm 2.25$ to $24.78\pm 2.29$. 
+In contrast, the 60-feature configurations 
+shows limited improvements from temporal encoding. Across hyperparameter variations, the 
+temporal encoding extension yield less systematic effects than the choice of observation
+feature set. 
+
+In the fiducial 16-feature setting, the policy likely benefited from 
+recent historical information encoded by GRU. The extended 60-feature setting, 
+each state already contains historical summary features, making
+the additional GRU summary partly redundant. In addition, the larger augmented 
+representation may be harder for the actor-critic network of PPO to use effectively,
+which could explain the underperforming 60-feature variants underperforms the baseline.
+
+\subsection{Sample Reweighting}
+
+The sample-reweighted PPO achieves a period-27 sweep score of \textbf{24.28}, compared to
+20.14 for the uniform-sampling baseline which is a gain of 1.0 point (+4.0\%). The improvement is
+consistent across training: the weighted training curve lies above the uniform baseline
+throughout the full 10M environment steps, not only at convergence (Figure~\ref{fig:samplereweight-curve}).
+This suggests that the gradient is being allocated more efficiently across the period
+distribution, rather than the policy simply converging to a different local optimum.
+ 
+% TODO: uncomment once figure is added
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/sample_reweight_training.png}
+  \caption{PPO training curves: uniform sampling (baseline) vs.\ score-weighted
+  period sampling ($\alpha=0.9$, $T=30$). Weighted sampling outperforms
+  throughout training.}
+  \label{fig:samplereweight-curve}
+\end{figure}
+ 
+The result validates the hypothesis that \emph{where} the policy trains matters, not only
+\emph{how} it trains. By concentrating rollouts on high-scoring pairs, the reweighted sampler lets the policy learn more from demonstrations of effective bidding behavior, i.e. correct pacing, CPA-compliant budget allocation, and selective bid
+placement, rather than spending equal gradient budget on trajectories that exhibit poor strategies. [OPTIONAL, CAN BE REMOVED: The gain is modest compared to some other extensions
+(e.g., market-regime conditioning at 29.7), which is expected: sampling changes the
+\emph{efficiency} of learning but not the \emph{information} available to the policy.
+The two interventions are complementary and could in principle be stacked.]
+
+[CAN BE PUT INTO 4. DISCUSSION SECTION] One possible explanation for the modest 4\% gain is the aggressive choice of
+$\alpha{=}0.9$, which places 90\% of sampling weight on the softmax distribution. This may cause the policy to overfit to high-scoring campaigns while under-training on harder advertisers with tighter CPA constraints or unusual budget profiles. A lower
+$\alpha$ (e.g., 0.5--0.7) would retain more uniform coverage and may yield a better
+balance between learning from good behavior and maintaining robustness across diverse
+advertiser types. We leave this sweep to future work.
+
+
+
+\subsection{Market-aware Feature Engineering}
+@Bonnie: result description+ takeaway (which hypothesis does this extension validates?)
+
+\subsection{Reward Shaping}
+The reward shaping PPO achieves a best sweep score of $25.6$, at $\lambda = .0001$ and an improvement from the baseline. The gap for $\lambda = .01$ shows a visible gap in mean episode reward, which reflects the penalty term in the shaped objective and is not a drop in the unshaped score. We bounded sweep $\lambda$ at $.01$ as the penalty punishes overspend, and we do not have an additional reward mechanism for efficient bids that are within CPA and converged. A larger $\lambda$ would bias the policy toward conservative spending, which could hurt conversions that agents would otherwise win.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{figures/compare_obs16_default_vs_lambda_sweep.png}
+  \caption{Reward shaping curves across $\lambda$ values versus baseline PPO. Training results are within similar convergence with the baseline.}
+  \label{fig:reward_shaping}
+\end{figure}
+For each unique $\lambda$, the agent solved a different problem than original. We see $\lambda \in \{.0001, .001\}$ is too small to register in training, while $\lambda = .01$ drops training reward by $25\%$ without altering final reward in training. Exploratory runs of stricter $\lambda$ values, such as $.1 \text{ or } 1$, produced a policy toward ineffective bidding.
+\subsection{RL training on LLM}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/llm_grpo_training.pdf}
+    \caption{\textbf{GRPO + LoRA fine-tuning of Qwen3-8B on AuctionNet periods 7--26
+    (validation on period 27).} Left: per-step training score (rolling-10 mean and
+    min/max band over each batch of 16 rollouts), greedy validation reward at every
+    checkpoint, and the frozen-base-model validation baseline (gray dotted line at
+    17.08). Right: actor token entropy on a log scale, tracking how quickly the
+    action distribution concentrates during training.}
+    \label{fig:llm_grpo_training}
+\end{figure}
+
+We report the GRPO training of Qwen3-8B in
+Figure~\ref{fig:llm_grpo_training}. The run uses rollout temperature \(1.0\),
+group size \(G=4\), and no entropy bonus. During training, chain-of-thought generation was disabled due to the computational resource limit. The
+validation curve shows the sample efficiency advantage of starting from a
+pretrained policy: the frozen Qwen3-8B model already reaches a nontrivial
+validation score of 17.08, and GRPO lifts it to 21 in the early stage
+of training. The resulting score is below the peak of the best non-LLM
+actor-critic policies, but the early jump suggests that pretraining gives the
+policy a useful prior for converting auction states into bid multipliers.
+
+The later training dynamics point to the limitation of this setup. With
+chain-of-thought disabled, token entropy mainly reflects the spread of the
+emitted action; once the policy concentrates around a narrow set of bid
+multipliers, the \(G=4\) samples provide little within-group return variation
+for GRPO. The current setup therefore reaches a useful low-entropy pacing mode
+quickly, but larger rollout groups or stronger exploration pressure may be
+needed to turn the sample-efficiency gain into competitive peak performance.
+
+
+\section{Discussion and Limitations}
+Several extensions showed better performance than original PPO. The principal limitation is computational resources, since each PPO run trains 10 million steps on the environment. Given the time constraint of the project, hyperparameter tuning is expensive. Future directions include finer hyperparameter tuning and mixed strategy of combining extensions to see if performance gain can be aggregated.
+\paragraph{Reward Shaping}
 {\footnotesize
 % \paragraph{Acknowledgements.} We thank XXX.
-\newpage
+
 \bibliographystyle{apalike}
 \bibliography{references}
 }
+
+\section{Appendix (Optional)}
+
+Include any details that don't fit within the main body here.
 
 \end{document}
