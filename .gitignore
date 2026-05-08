@@ -25,3 +25,5 @@ ppo/TEMPORAL_PPO_CHANGES.md
 ppo/WEIGHTED_PPO_CHANGES.md
 llm/README_verl.md
 ppo/configs/obs_60_drop*
+scripts/
+strategy_train_env/
